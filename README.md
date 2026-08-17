@@ -1,92 +1,136 @@
-# Lake Tekapo 酒店放房监控（免费接口版）
+<div align="center">
 
-一个可长期运行的小时级监控服务。它直接检查酒店公开的官网预订页，不使用 SerpApi 或其他付费酒店搜索 API。固定查询 `2027-02-05` 至 `2027-02-06`、2 位成人，并监控：
+# 🏨 LakeWatch
 
-- Ranginui at Lake Tekapo
-- Lakeview Tekapo
-- Grand Suites Lake Tekapo
-- Galaxy Boutique Hotel
-- Peppers Bluewater Resort Lake Tekapo
-- The Hermitage Hotel Mt Cook（原需求里的 “Herimage” 按此酒店纠正）
+### Lake Tekapo / Mt Cook 酒店放房监控
 
-## 提醒规则
+每小时自动检查 6 家酒店官网。只在真正出现新房时提醒，不用守着网页反复刷新。
 
-- 第一次成功执行只建立基线，不发提醒。
-- `无房 → 有房` 时提醒。
-- 已有房时出现新房型才提醒。
-- 价格变化、持续有房、持续无房均不提醒。
-- 官网超时、改版或拦截自动浏览器时记为查询错误，不会误标成无房，也不会覆盖最后一次有效快照。
-- 飞书发送失败会保留在 SQLite 待发队列，后续执行自动重试。
+[![Hourly monitor](https://github.com/biblioth/tekapo-hotel-monitor/actions/workflows/hourly-monitor.yml/badge.svg)](https://github.com/biblioth/tekapo-hotel-monitor/actions/workflows/hourly-monitor.yml)
+[![Daily summary](https://github.com/biblioth/tekapo-hotel-monitor/actions/workflows/daily-summary.yml/badge.svg)](https://github.com/biblioth/tekapo-hotel-monitor/actions/workflows/daily-summary.yml)
+[![Python 3.12](https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![Cost](https://img.shields.io/badge/运行成本-NZ%240-brightgreen)](#为什么是免费的)
 
-所有结果都来自酒店官网或其官方预订引擎；不会因为第三方 OTA 新增同一房型而打扰你。
+**安静监控 · 官网直查 · 飞书秒推 · 每日简报**
 
-## 费用
+</div>
 
-代码和查询本身不需要购买 API。你只需要一台能常驻联网运行 Docker 的电脑、NAS 或服务器。如果用自己现有的 Mac/NAS，软件侧可以做到零新增费用；如果租云服务器，服务器本身可能收费。
+---
 
-## 免费云端运行（推荐）
+## 它解决什么问题
 
-项目已包含 GitHub Actions 小时任务。使用**公开 GitHub 仓库**和标准
-`ubuntu-latest` runner 时不消耗付费 Actions 分钟，Mac 关机也会继续运行。
-仓库代码会公开，但 Webhook 和签名密钥只保存在 GitHub Secrets，不会公开。
-请注意，公开仓库也会公开酒店名单和入住日期；如果不希望公开这些行程信息，应改用
-私有仓库。GitHub Free 私有仓库目前每月包含 2,000 分钟，但小时浏览器任务是否始终
-够用取决于每次实际耗时，不能像公开仓库一样保证不限分钟。
+热门日期的酒店房源可能随时因取消订单重新放出。LakeWatch 在云端持续帮你检查，只有发现值得行动的变化才发送飞书消息：
 
-1. 在 GitHub 新建一个 **Public** 仓库，例如 `tekapo-hotel-monitor`。
-2. 把本项目文件上传到仓库；不要上传本地 `.env`（它已在 `.gitignore` 中）。
-3. 打开仓库的 `Settings → Secrets and variables → Actions`，新增两个
-   Repository secret：
+- **新放房**：酒店从无房变为有房。
+- **新房型**：已有房源时又出现此前没有的房型。
+- **不打扰**：价格变化、持续有房、持续无房都不会提醒。
+- **不误报**：官网超时、改版或验证码会记录为异常，不会被当成“无房”。
+
+第一次运行只建立房态基线，不发送提醒。
+
+## 当前监控行程
+
+| 项目 | 配置 |
+| --- | --- |
+| 入住 | **2027-02-05** |
+| 退房 | **2027-02-06** |
+| 住客 | **2 位成人** |
+| 频率 | **每小时一次** |
+| 数据源 | **酒店官网 / 官方预订引擎** |
+| 提醒渠道 | **飞书自定义机器人** |
+| 每日简报 | **北京时间每天 00:07** |
+
+监控酒店：
+
+1. Ranginui at Lake Tekapo
+2. Lakeview Tekapo
+3. Grand Suites Lake Tekapo
+4. Galaxy Boutique Hotel
+5. Peppers Bluewater Resort Lake Tekapo
+6. The Hermitage Hotel Mt Cook
+
+> 原需求中的 “Herimage Mt Cook” 已按 **The Hermitage Hotel Mt Cook** 处理。
+
+## 收到的提醒长这样
+
+```text
+🔔 Lake Tekapo 捡漏
+
+Peppers Bluewater Resort 放房
+房型：Deluxe Lake View Room
+价格：NZ$xxx
+可免费取消至：2027/02/03 xx:xx
+渠道：官网
+
+建议：⭐⭐⭐⭐⭐ 立即订
+```
+
+每天还会收到一条简短汇总，包含前一天的执行次数、异常数、房态变化和提醒次数。即使全天没有新房，也能确认服务仍在正常工作。
+
+## 工作方式
+
+```mermaid
+flowchart LR
+    A[GitHub Actions<br/>每小时启动] --> B[检查 6 家酒店官网]
+    B --> C[与上一次有效房态比较]
+    C -->|新放房 / 新房型| D[飞书提醒]
+    C -->|没有变化| E[保持安静]
+    B --> F[保存执行日志 90 天]
+    F --> G[每日 00:07 简报]
+```
+
+系统会保存最后一次有效快照。飞书发送失败时，消息会进入待发队列，并在后续执行中自动重试。
+
+## 为什么是免费的
+
+本项目直接读取酒店公开的官网预订页，不依赖 SerpApi 或其他付费酒店搜索 API。它运行在**公开 GitHub 仓库**的标准 GitHub Actions runner 上，因此不消耗付费 Actions 分钟，Mac 关机后也会继续执行。
+
+需要了解的边界：
+
+- 仓库代码、酒店名单和入住日期是公开的。
+- 飞书 Webhook 与签名密钥存放在 GitHub Actions Secrets 中，不会出现在代码里。
+- GitHub 定时任务可能在高峰期延迟几分钟，不适合秒级抢房。
+- 每月心跳工作流会保持定时任务活跃，避免公开仓库长期无提交后被暂停。
+
+## 云端部署
+
+1. 创建一个 **Public** GitHub 仓库并上传本项目；不要提交 `.env`。
+2. 进入 `Settings → Secrets and variables → Actions`，添加：
    - `FEISHU_WEBHOOK_URL`
    - `FEISHU_WEBHOOK_SECRET`
-4. 打开仓库 `Actions → Hourly hotel monitor → Run workflow`，手动执行一次。
-   第一次成功运行只建立基线，不会发送放房提醒。
+3. 进入 `Actions → Hourly hotel monitor → Run workflow`，手动执行一次以建立基线。
+4. 检查 Actions 页面是否出现绿色成功状态。
 
-之后任务会在每小时 UTC 第 17 分执行。GitHub 定时任务不是实时系统，高峰期可能
-延迟几分钟。SQLite 状态会通过 Actions cache 传给下一次任务，失败查询不会覆盖
-上一次有效状态；每次 JSONL 执行日志同时作为 Artifact 保存 90 天。
+随后：
 
-北京时间每天 `00:07` 还会向飞书发送一条简短的前一日汇总，包括执行次数、异常数、
-放房变化、提醒次数，以及六家酒店的最新有房/无房数量。
+- `Hourly hotel monitor` 在每小时 UTC 第 17 分检查房态。
+- `Daily hotel summary` 在北京时间每天 00:07 发送前一日简报。
+- 每次 JSONL 日志会作为 GitHub Actions Artifact 保存 90 天。
+- SQLite 状态通过 Actions cache 传递到下一次执行。
 
-公开仓库如果连续 60 天没有仓库活动，GitHub 会自动停用定时工作流。项目包含一个
-每月仅更新一次心跳文件的工作流，以保持小时任务长期启用。
+## 本地运行（可选）
 
-## 启动
-
-以下是本地 Docker 运行方式；选择 GitHub Actions 云端版时不需要执行本节。
-
-1. 在飞书群添加“自定义机器人”，复制 Webhook；如启用签名校验，同时复制签名密钥。飞书推送是可选的，不填写时提醒仍会写入数据库和日志。
-2. 复制配置并启动：
+云端版本无需保持电脑开机。只有需要本地调试或自建部署时，才需要 Docker：
 
 ```bash
 cp .env.example .env
-# 编辑 .env；要推送飞书就填写 FEISHU_WEBHOOK_URL
+# 在 .env 中填写飞书 Webhook 与签名密钥
 docker compose up -d --build
 ```
 
-Docker 首次构建会下载 Chromium，因此镜像较大，但没有按次或按月的查询费。服务每小时第 7 分钟（`Pacific/Auckland`）执行，容器启动时也会立即执行一次。
+本地服务默认提供：
 
-## 状态与日志
+| 接口 | 用途 |
+| --- | --- |
+| `GET /healthz` | 存活检查 |
+| `GET /status` | 查看下次执行时间、最近执行和酒店快照 |
+| `GET /runs?limit=24` | 查看每小时执行历史 |
+| `POST /check` | 手动触发检查 |
 
-- `GET /healthz`：存活检查。
-- `GET /status`：下一次执行时间、最后一次执行、6 家酒店快照。
-- `GET /runs?limit=24`：每小时执行历史。
-- `POST /check`：手动执行；设置 `ADMIN_TOKEN` 后须带 `X-Admin-Token` 请求头。
+持久化数据：
 
-持久化文件：
-
-- `data/monitor.db`：每次执行、逐酒店观察、最新快照和提醒待发队列。
-- `data/monitor.jsonl`：逐行 JSON 执行日志，按 UTC 每日轮转，默认保留 365 天。
-
-常用命令：
-
-```bash
-curl http://127.0.0.1:8080/status
-curl http://127.0.0.1:8080/runs?limit=24
-curl -X POST http://127.0.0.1:8080/check
-docker compose logs -f monitor
-```
+- `data/monitor.db`：执行记录、酒店观察、有效快照和待发提醒。
+- `data/monitor.jsonl`：按 UTC 日期轮转的逐行 JSON 日志。
 
 ## 本地开发
 
@@ -98,9 +142,16 @@ python -m playwright install chromium
 pytest
 ```
 
-## 运行注意
+## 使用提示
 
-- 官网可能改版、验证码或短暂限流。此时该酒店会显示 `error` 并写日志，不会制造放房提醒；后续小时任务会自动再查。
-- 请保持每小时一次，不要把频率调得很高，以免给酒店官网造成不必要的请求。
-- SQLite 与 JSONL 必须挂载到持久卷（Compose 已配置）。会休眠或无持久磁盘的平台不能保证小时调度和历史日志。
-- 自建服务无法向 ChatGPT 客户端反向推送；当前主动提醒通道是飞书 Webhook，并同时保留 HTTP 状态接口。
+- 酒店官网可能改版、限流或弹出验证码；系统会记录异常，并在下个小时自动重试。
+- 请保持每小时一次的友好频率，避免对酒店官网造成不必要的请求。
+- 房态和价格以最终预订页面为准；收到提醒后仍应尽快打开官网确认并下单。
+
+---
+
+<div align="center">
+
+**LakeWatch — 把时间留给旅行，而不是刷新网页。**
+
+</div>
