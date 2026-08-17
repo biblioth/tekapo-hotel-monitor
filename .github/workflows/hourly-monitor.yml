@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: tekapo-hourly-hotel-monitor
+  group: tekapo-hotel-monitor
   cancel-in-progress: false
 
 jobs:
