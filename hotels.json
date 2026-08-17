@@ -1,0 +1,66 @@
+[
+  {
+    "key": "ranginui",
+    "name": "Ranginui at Lake Tekapo",
+    "engine": "preno",
+    "booking_url": "https://bookdirect.prenohq.com/inst/#home?propertyId=262IjuXNAH9B7SD4LIUyNzU5NiI=&JDRN=Y",
+    "room_names": ["Rangi", "Whenua", "Whetu"],
+    "aliases": ["Ranginui Bed & Breakfast"]
+  },
+  {
+    "key": "lakeview-tekapo",
+    "name": "Lakeview Tekapo",
+    "engine": "lakeview_wix",
+    "booking_url": "https://www.lakeviewtekapo.com/book-online",
+    "room_names": ["Lakeview Tekapo Studio"],
+    "aliases": []
+  },
+  {
+    "key": "grand-suites",
+    "name": "Grand Suites Lake Tekapo",
+    "engine": "ibex",
+    "booking_url": "https://grandsuitestekapo.co.nz/book-now/",
+    "room_names": ["Executive Studio", "Luxury Studio", "One Bedroom Suite", "Two Bedroom Suite"],
+    "aliases": ["Grand Suites Tekapo"]
+  },
+  {
+    "key": "galaxy-boutique",
+    "name": "Galaxy Boutique Hotel",
+    "engine": "siteminder",
+    "booking_url": "https://book-directonline.com/properties/galaxytekapodirect",
+    "room_names": [
+      "Deluxe Lake View Room",
+      "Two-Bedroom Lake View Suite Accessible (No Skylight)",
+      "Two-Bedroom Lake View Suite with Bath (No Skylight)"
+    ],
+    "aliases": []
+  },
+  {
+    "key": "peppers-bluewater",
+    "name": "Peppers Bluewater Resort Lake Tekapo",
+    "engine": "accor",
+    "booking_url": "https://all.accor.com/booking/en/accor/hotel/B3Q7",
+    "room_names": [
+      "Peppers Petite", "Deluxe Hotel Room", "Deluxe Lake View Hotel Room",
+      "1 Bedroom Mountain View Villa", "1 Bedroom Lake View Villa",
+      "1 Bedroom Mountain View Suite", "1 Bedroom Lake View Suite",
+      "2 Bedroom Mountain View Suite", "2 Bedroom Lake View Suite",
+      "2 Bedroom Mountain View Villa", "2 Bedroom Lake View Villa",
+      "3 Bedroom Mountain View Villa", "3 Bedroom Lake View Villa"
+    ],
+    "aliases": ["Peppers Bluewater Resort"]
+  },
+  {
+    "key": "hermitage-mt-cook",
+    "name": "The Hermitage Hotel Mt Cook",
+    "engine": "agilysys",
+    "booking_url": "https://book.hermitage.co.nz/onecart/wbe/offers/20104/hermitage",
+    "room_names": [
+      "Premium Plus Super King", "Premium Plus Queen Queen", "Premium Super King",
+      "Premium Queen Queen", "Mt Cook Suite", "Superior Room",
+      "Standard Mt Cook View King", "Standard Mt Cook View Queen",
+      "Standard (No View)", "Standard Queen (No View)"
+    ],
+    "aliases": ["Hermitage Mt Cook", "The Hermitage Hotel"]
+  }
+]
