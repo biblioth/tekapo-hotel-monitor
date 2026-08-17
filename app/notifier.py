@@ -26,6 +26,9 @@ class FeishuNotifier:
 
     async def send(self, event: dict[str, Any]) -> None:
         message = self.render(event)
+        await self.send_text(message)
+
+    async def send_text(self, message: str) -> None:
         if not self.settings.feishu_webhook_url:
             logger.info("Feishu webhook not configured; alert logged only: %s", message)
             return
@@ -84,4 +87,3 @@ class FeishuNotifier:
         if len(offers) > 5:
             lines.append(f"\n另有 {len(offers) - 5} 个新房型，详见执行日志。")
         return "\n".join(lines)
-
