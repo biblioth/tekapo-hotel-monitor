@@ -61,7 +61,12 @@ async def send_daily_summary() -> dict[str, Any]:
     database = Database(settings.database_path)
     notifier = FeishuNotifier(settings)
     summary_timezone = ZoneInfo(os.getenv("SUMMARY_TIMEZONE", "Asia/Shanghai"))
-    target_date = datetime.now(summary_timezone).date() - timedelta(days=1)
+    requested_date = os.getenv("SUMMARY_DATE", "").strip()
+    target_date = (
+        date.fromisoformat(requested_date)
+        if requested_date
+        else datetime.now(summary_timezone).date() - timedelta(days=1)
+    )
     runs = runs_for_local_date(database.latest_runs(500), target_date, summary_timezone)
     snapshots = database.snapshots()
     message = build_summary(target_date, runs, snapshots)
