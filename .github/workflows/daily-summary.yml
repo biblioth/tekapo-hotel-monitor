@@ -1,0 +1,68 @@
+name: Daily hotel summary
+
+on:
+  schedule:
+    - cron: "7 0 * * *"
+      timezone: Asia/Shanghai
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tekapo-hotel-monitor
+  cancel-in-progress: false
+
+jobs:
+  summary:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      FEISHU_WEBHOOK_URL: ${{ secrets.FEISHU_WEBHOOK_URL }}
+      FEISHU_WEBHOOK_SECRET: ${{ secrets.FEISHU_WEBHOOK_SECRET }}
+      DATABASE_PATH: data/monitor.db
+      LOG_FILE: data/daily-summary.jsonl
+      HOTELS_FILE: hotels.json
+      LOG_RETENTION_DAYS: "90"
+      SUMMARY_TIMEZONE: Asia/Shanghai
+
+    steps:
+      - name: Check out monitor code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install monitor
+        run: pip install -e .
+
+      - name: Validate Feishu secret configuration
+        shell: bash
+        run: |
+          if [[ -z "$FEISHU_WEBHOOK_URL" || -z "$FEISHU_WEBHOOK_SECRET" ]]; then
+            echo '::error::FEISHU_WEBHOOK_URL and FEISHU_WEBHOOK_SECRET must be configured in repository Actions secrets.'
+            exit 1
+          fi
+
+      - name: Restore hourly monitor state
+        uses: actions/cache/restore@v4
+        with:
+          path: data/monitor.db*
+          key: daily-summary-${{ github.run_id }}
+          restore-keys: |
+            monitor-state-v1-
+
+      - name: Send previous-day summary to Feishu
+        run: python -m app.daily_summary
+
+      - name: Save summary execution log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: daily-summary-log-${{ github.run_id }}-${{ github.run_attempt }}
+          path: data/daily-summary.jsonl*
+          if-no-files-found: warn
+          retention-days: 90
