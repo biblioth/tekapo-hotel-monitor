@@ -5,6 +5,11 @@ on:
     - cron: "7 0 * * *"
       timezone: Asia/Shanghai
   workflow_dispatch:
+    inputs:
+      summary_date:
+        description: Optional date to summarize (YYYY-MM-DD)
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -25,6 +30,7 @@ jobs:
       HOTELS_FILE: hotels.json
       LOG_RETENTION_DAYS: "90"
       SUMMARY_TIMEZONE: Asia/Shanghai
+      SUMMARY_DATE: ${{ inputs.summary_date }}
 
     steps:
       - name: Check out monitor code
