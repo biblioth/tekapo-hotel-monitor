@@ -1,0 +1,88 @@
+name: Hourly hotel monitor
+
+on:
+  schedule:
+    # GitHub schedules use UTC. Minute 17 avoids the busiest start-of-hour window.
+    - cron: "17 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tekapo-hourly-hotel-monitor
+  cancel-in-progress: false
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      FEISHU_WEBHOOK_URL: ${{ secrets.FEISHU_WEBHOOK_URL }}
+      FEISHU_WEBHOOK_SECRET: ${{ secrets.FEISHU_WEBHOOK_SECRET }}
+      CHECK_IN: "2027-02-05"
+      CHECK_OUT: "2027-02-06"
+      ADULTS: "2"
+      CURRENCY: NZD
+      CHECK_TIMEZONE: Pacific/Auckland
+      BROWSER_TIMEOUT_SECONDS: "75"
+      BROWSER_RETRIES: "2"
+      DATABASE_PATH: data/monitor.db
+      LOG_FILE: data/monitor.jsonl
+      HOTELS_FILE: hotels.json
+      LOG_RETENTION_DAYS: "90"
+
+    steps:
+      - name: Check out monitor code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install monitor
+        run: pip install -e .
+
+      - name: Validate Feishu secret configuration
+        shell: bash
+        run: |
+          if [[ -z "$FEISHU_WEBHOOK_URL" || -z "$FEISHU_WEBHOOK_SECRET" ]]; then
+            echo '::error::FEISHU_WEBHOOK_URL and FEISHU_WEBHOOK_SECRET must be configured in repository Actions secrets.'
+            exit 1
+          fi
+
+      - name: Read Playwright version
+        id: playwright
+        shell: bash
+        run: echo "version=$(python -c 'import importlib.metadata; print(importlib.metadata.version("playwright"))')" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Chromium
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-${{ runner.os }}-${{ steps.playwright.outputs.version }}
+
+      - name: Install Chromium system dependencies
+        run: python -m playwright install --with-deps chromium
+
+      - name: Restore previous availability state
+        uses: actions/cache@v4
+        with:
+          path: data/monitor.db*
+          key: monitor-state-v1-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            monitor-state-v1-
+
+      - name: Check six official hotel sites
+        run: python -m app.cloud_run
+
+      - name: Save this hourly execution log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: monitor-log-${{ github.run_id }}-${{ github.run_attempt }}
+          path: data/monitor.jsonl*
+          if-no-files-found: warn
+          retention-days: 90
