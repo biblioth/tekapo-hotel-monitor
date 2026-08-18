@@ -1,7 +1,7 @@
 [project]
 name = "tekapo-hotel-monitor"
 version = "1.0.0"
-description = "Hourly hotel availability monitor with deduplicated Feishu alerts"
+description = "Quiet hotel availability monitor with deduplicated Feishu and WeChat alerts"
 requires-python = ">=3.12"
 dependencies = [
   "apscheduler>=3.10,<4",
