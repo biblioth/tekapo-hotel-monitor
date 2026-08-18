@@ -99,6 +99,25 @@ async def test_pushplus_event_title_contains_actionable_summary() -> None:
 
 
 @pytest.mark.asyncio
+async def test_pushplus_daily_summary_is_visible_in_title() -> None:
+    settings = SimpleNamespace(pushplus_token="test-message-token", pushplus_topic="lakewatch20270205")
+    client = FakeClient({"code": 200, "msg": "请求成功"})
+    notifier = PushPlusNotifier(settings, client=client)
+    message = (
+        "📊 酒店监控日报｜2026-08-17\n"
+        "执行 24 次｜成功 24｜异常 0\n"
+        "放房变化 0｜已提醒 0\n"
+        "当前：有房 1 家｜无房 5 家"
+    )
+
+    await notifier.send_text(message)
+
+    assert client.requests[0][1]["title"] == (
+        "📊 酒店监控日报｜2026-08-17｜执行 24 次｜成功 24｜异常 0｜放房变化 0｜已提醒 0"
+    )
+
+
+@pytest.mark.asyncio
 async def test_fanout_keeps_working_when_one_channel_fails() -> None:
     notifier = FanoutNotifier(SimpleNamespace(feishu_webhook_url=None, pushplus_token=None))
     working = StubChannel()
