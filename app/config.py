@@ -21,6 +21,8 @@ def _bool(name: str, default: bool) -> bool:
 class Settings:
     feishu_webhook_url: str | None
     feishu_webhook_secret: str | None
+    pushplus_token: str | None
+    pushplus_topic: str | None
     check_in: date
     check_out: date
     adults: int
@@ -42,6 +44,8 @@ class Settings:
         settings = cls(
             feishu_webhook_url=os.getenv("FEISHU_WEBHOOK_URL") or None,
             feishu_webhook_secret=os.getenv("FEISHU_WEBHOOK_SECRET") or None,
+            pushplus_token=os.getenv("PUSHPLUS_TOKEN") or None,
+            pushplus_topic=os.getenv("PUSHPLUS_TOPIC") or None,
             check_in=date.fromisoformat(os.getenv("CHECK_IN", "2027-02-05")),
             check_out=date.fromisoformat(os.getenv("CHECK_OUT", "2027-02-06")),
             adults=int(os.getenv("ADULTS", "2")),
