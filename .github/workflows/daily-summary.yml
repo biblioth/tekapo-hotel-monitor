@@ -25,6 +25,8 @@ jobs:
     env:
       FEISHU_WEBHOOK_URL: ${{ secrets.FEISHU_WEBHOOK_URL }}
       FEISHU_WEBHOOK_SECRET: ${{ secrets.FEISHU_WEBHOOK_SECRET }}
+      PUSHPLUS_TOKEN: ${{ secrets.PUSHPLUS_TOKEN }}
+      PUSHPLUS_TOPIC: ${{ secrets.PUSHPLUS_TOPIC }}
       DATABASE_PATH: data/monitor.db
       LOG_FILE: data/daily-summary.jsonl
       HOTELS_FILE: hotels.json
@@ -45,11 +47,15 @@ jobs:
       - name: Install monitor
         run: pip install -e .
 
-      - name: Validate Feishu secret configuration
+      - name: Validate notification secret configuration
         shell: bash
         run: |
           if [[ -z "$FEISHU_WEBHOOK_URL" || -z "$FEISHU_WEBHOOK_SECRET" ]]; then
             echo '::error::FEISHU_WEBHOOK_URL and FEISHU_WEBHOOK_SECRET must be configured in repository Actions secrets.'
+            exit 1
+          fi
+          if [[ -z "$PUSHPLUS_TOKEN" || -z "$PUSHPLUS_TOPIC" ]]; then
+            echo '::error::PUSHPLUS_TOKEN and PUSHPLUS_TOPIC must be configured in repository Actions secrets.'
             exit 1
           fi
 
@@ -61,7 +67,7 @@ jobs:
           restore-keys: |
             monitor-state-v1-
 
-      - name: Send previous-day summary to Feishu
+      - name: Send previous-day summary
         run: python -m app.daily_summary
 
       - name: Save summary execution log
