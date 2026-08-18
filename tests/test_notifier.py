@@ -1,3 +1,4 @@
+from datetime import date
 from types import SimpleNamespace
 
 import pytest
@@ -61,6 +62,40 @@ async def test_pushplus_uses_topic_and_wechat_channel() -> None:
             },
         )
     ]
+
+
+@pytest.mark.asyncio
+async def test_pushplus_event_title_contains_actionable_summary() -> None:
+    settings = SimpleNamespace(
+        pushplus_token="test-message-token",
+        pushplus_topic="lakewatch20270205",
+        check_in=date(2027, 2, 5),
+        check_out=date(2027, 2, 6),
+    )
+    client = FakeClient({"code": 200, "msg": "请求成功"})
+    notifier = PushPlusNotifier(settings, client=client)
+    event = {
+        "event_type": "availability_returned",
+        "payload": {
+            "hotel_name": "Peppers Bluewater Resort Lake Tekapo",
+            "offers": [
+                {
+                    "room_name": "Deluxe Lake View Room",
+                    "price_label": "NZ$420",
+                    "free_cancellation": True,
+                    "source": "Official",
+                    "official": True,
+                    "link": "https://example.com/book",
+                }
+            ],
+        },
+    }
+
+    await notifier.send(event)
+
+    assert client.requests[0][1]["title"] == (
+        "🔔 Peppers Bluewater｜Deluxe Lake View Room｜NZ$420｜可免费取消｜立即订"
+    )
 
 
 @pytest.mark.asyncio
