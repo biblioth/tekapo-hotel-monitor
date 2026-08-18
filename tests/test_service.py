@@ -31,6 +31,8 @@ def make_settings(tmp_path: Path) -> Settings:
     return Settings(
         feishu_webhook_url=None,
         feishu_webhook_secret=None,
+        pushplus_token=None,
+        pushplus_topic=None,
         check_in=date(2027, 2, 5),
         check_out=date(2027, 2, 6),
         adults=2,
