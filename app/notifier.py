@@ -14,6 +14,28 @@ from app.config import Settings
 
 logger = logging.getLogger(__name__)
 
+HOTEL_SHORT_NAMES = {
+    "Ranginui at Lake Tekapo": "Ranginui",
+    "Lakeview Tekapo": "Lakeview",
+    "Grand Suites Lake Tekapo": "Grand Suites",
+    "Galaxy Boutique Hotel": "Galaxy Boutique",
+    "Peppers Bluewater Resort Lake Tekapo": "Peppers Bluewater",
+    "The Hermitage Hotel Mt Cook": "Hermitage Mt Cook",
+}
+
+
+def build_pushplus_title(event: dict[str, Any]) -> str:
+    """Put the decision-making details in the visible WeChat notification title."""
+    payload = event["payload"]
+    offer = payload["offers"][0]
+    hotel = HOTEL_SHORT_NAMES.get(payload["hotel_name"], payload["hotel_name"])
+    room = str(offer["room_name"])
+    if len(room) > 22:
+        room = room[:21] + "…"
+    price = offer.get("price_label") or "价格待确认"
+    cancellation = "可免费取消" if offer.get("free_cancellation") else "取消待确认"
+    return f"🔔 {hotel}｜{room}｜{price}｜{cancellation}｜立即订"
+
 
 def render_alert(settings: Settings, event: dict[str, Any]) -> str:
     payload = event["payload"]
@@ -108,8 +130,7 @@ class PushPlusNotifier:
             await self.client.aclose()
 
     async def send(self, event: dict[str, Any]) -> None:
-        hotel_name = str(event["payload"]["hotel_name"])
-        await self.send_text(render_alert(self.settings, event), title=f"LakeWatch｜{hotel_name} 放房")
+        await self.send_text(render_alert(self.settings, event), title=build_pushplus_title(event))
 
     async def send_text(self, message: str, title: str = "LakeWatch 酒店监控") -> None:
         if not self.settings.pushplus_token:
