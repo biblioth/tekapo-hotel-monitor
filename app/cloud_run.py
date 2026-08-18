@@ -7,7 +7,7 @@ import logging
 from app.config import Settings
 from app.database import Database
 from app.logging_config import configure_logging
-from app.notifier import FeishuNotifier
+from app.notifier import FanoutNotifier
 from app.provider import DirectWebsiteProvider
 from app.service import MonitorService
 
@@ -18,7 +18,7 @@ async def run_cloud_check() -> dict[str, object]:
     configure_logging(settings.log_file, settings.log_retention_days)
     database = Database(settings.database_path)
     provider = DirectWebsiteProvider(settings)
-    notifier = FeishuNotifier(settings)
+    notifier = FanoutNotifier(settings)
     service = MonitorService(
         settings,
         settings.load_hotels(),
