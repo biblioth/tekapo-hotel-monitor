@@ -11,7 +11,7 @@ from zoneinfo import ZoneInfo
 from app.config import Settings
 from app.database import Database
 from app.logging_config import configure_logging
-from app.notifier import FeishuNotifier
+from app.notifier import FanoutNotifier
 
 logger = logging.getLogger(__name__)
 
@@ -59,7 +59,7 @@ async def send_daily_summary() -> dict[str, Any]:
     settings = Settings.from_env()
     configure_logging(settings.log_file, settings.log_retention_days)
     database = Database(settings.database_path)
-    notifier = FeishuNotifier(settings)
+    notifier = FanoutNotifier(settings)
     summary_timezone = ZoneInfo(os.getenv("SUMMARY_TIMEZONE", "Asia/Shanghai"))
     requested_date = os.getenv("SUMMARY_DATE", "").strip()
     target_date = (
