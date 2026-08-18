@@ -12,7 +12,7 @@ from fastapi import FastAPI, Header, HTTPException, Query, Request
 from app.config import Settings
 from app.database import Database
 from app.logging_config import configure_logging
-from app.notifier import FeishuNotifier
+from app.notifier import FanoutNotifier
 from app.provider import DirectWebsiteProvider
 from app.service import MonitorService
 
@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     database = Database(settings.database_path)
     provider = DirectWebsiteProvider(settings)
-    notifier = FeishuNotifier(settings)
+    notifier = FanoutNotifier(settings)
     service = MonitorService(settings, settings.load_hotels(), provider, notifier, database)
     scheduler = AsyncIOScheduler(timezone=settings.timezone)
     scheduler.add_job(
