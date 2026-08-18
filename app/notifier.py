@@ -37,6 +37,14 @@ def build_pushplus_title(event: dict[str, Any]) -> str:
     return f"🔔 {hotel}｜{room}｜{price}｜{cancellation}｜立即订"
 
 
+def build_pushplus_text_title(message: str) -> str:
+    """Surface short text notifications, such as the daily summary, without a tap."""
+    lines = [line.strip() for line in message.splitlines() if line.strip()]
+    if not lines:
+        return "LakeWatch"
+    return "｜".join(lines[:3])[:80]
+
+
 def render_alert(settings: Settings, event: dict[str, Any]) -> str:
     payload = event["payload"]
     offers = payload["offers"]
@@ -132,13 +140,13 @@ class PushPlusNotifier:
     async def send(self, event: dict[str, Any]) -> None:
         await self.send_text(render_alert(self.settings, event), title=build_pushplus_title(event))
 
-    async def send_text(self, message: str, title: str = "LakeWatch 酒店监控") -> None:
+    async def send_text(self, message: str, title: str | None = None) -> None:
         if not self.settings.pushplus_token:
             logger.info("PushPlus token not configured; channel skipped")
             return
         payload = {
             "token": self.settings.pushplus_token,
-            "title": title,
+            "title": title or build_pushplus_text_title(message),
             "content": message,
             "template": "txt",
             "channel": "wechat",
