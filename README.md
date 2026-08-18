@@ -11,7 +11,7 @@
 [![Python 3.12](https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![Cost](https://img.shields.io/badge/运行成本-NZ%240-brightgreen)](#为什么是免费的)
 
-**安静监控 · 官网直查 · 飞书秒推 · 每日简报**
+**安静监控 · 官网直查 · 飞书 / 微信双推送 · 每日简报**
 
 </div>
 
@@ -19,7 +19,7 @@
 
 ## 它解决什么问题
 
-热门日期的酒店房源可能随时因取消订单重新放出。LakeWatch 在云端持续帮你检查，只有发现值得行动的变化才发送飞书消息：
+热门日期的酒店房源可能随时因取消订单重新放出。LakeWatch 在云端持续帮你检查，只有发现值得行动的变化才发送飞书和微信消息：
 
 - **新放房**：酒店从无房变为有房。
 - **新房型**：已有房源时又出现此前没有的房型。
@@ -37,7 +37,7 @@
 | 住客 | **2 位成人** |
 | 频率 | **每小时一次** |
 | 数据源 | **酒店官网 / 官方预订引擎** |
-| 提醒渠道 | **飞书自定义机器人** |
+| 提醒渠道 | **飞书机器人 + PushPlus 微信服务号** |
 | 每日简报 | **北京时间每天 00:07** |
 
 监控酒店：
@@ -73,13 +73,13 @@ Peppers Bluewater Resort 放房
 flowchart LR
     A[GitHub Actions<br/>每小时启动] --> B[检查 6 家酒店官网]
     B --> C[与上一次有效房态比较]
-    C -->|新放房 / 新房型| D[飞书提醒]
+    C -->|新放房 / 新房型| D[飞书 + 微信提醒]
     C -->|没有变化| E[保持安静]
     B --> F[保存执行日志 90 天]
     F --> G[每日 00:07 简报]
 ```
 
-系统会保存最后一次有效快照。飞书发送失败时，消息会进入待发队列，并在后续执行中自动重试。
+系统会保存最后一次有效快照，并把提醒同时交给飞书和 PushPlus。单个渠道临时失败不会挡住另一个渠道；如果两个渠道都失败，消息会保留在待发队列并在后续执行中重试。每个渠道的结果都会写入执行日志。
 
 ## 为什么是免费的
 
@@ -88,7 +88,7 @@ flowchart LR
 需要了解的边界：
 
 - 仓库代码、酒店名单和入住日期是公开的。
-- 飞书 Webhook 与签名密钥存放在 GitHub Actions Secrets 中，不会出现在代码里。
+- 飞书 Webhook、签名密钥和 PushPlus 消息 Token 存放在 GitHub Actions Secrets 中，不会出现在代码里。
 - GitHub 定时任务可能在高峰期延迟几分钟，不适合秒级抢房。
 - 每月心跳工作流会保持定时任务活跃，避免公开仓库长期无提交后被暂停。
 
@@ -98,6 +98,8 @@ flowchart LR
 2. 进入 `Settings → Secrets and variables → Actions`，添加：
    - `FEISHU_WEBHOOK_URL`
    - `FEISHU_WEBHOOK_SECRET`
+   - `PUSHPLUS_TOKEN`
+   - `PUSHPLUS_TOPIC`（当前群组编码：`lakewatch20270205`）
 3. 进入 `Actions → Hourly hotel monitor → Run workflow`，手动执行一次以建立基线。
 4. 检查 Actions 页面是否出现绿色成功状态。
 
@@ -114,7 +116,7 @@ flowchart LR
 
 ```bash
 cp .env.example .env
-# 在 .env 中填写飞书 Webhook 与签名密钥
+# 在 .env 中填写飞书 Webhook、签名密钥和 PushPlus Token
 docker compose up -d --build
 ```
 
