@@ -20,6 +20,8 @@ jobs:
     env:
       FEISHU_WEBHOOK_URL: ${{ secrets.FEISHU_WEBHOOK_URL }}
       FEISHU_WEBHOOK_SECRET: ${{ secrets.FEISHU_WEBHOOK_SECRET }}
+      PUSHPLUS_TOKEN: ${{ secrets.PUSHPLUS_TOKEN }}
+      PUSHPLUS_TOPIC: ${{ secrets.PUSHPLUS_TOPIC }}
       CHECK_IN: "2027-02-05"
       CHECK_OUT: "2027-02-06"
       ADULTS: "2"
@@ -45,11 +47,15 @@ jobs:
       - name: Install monitor
         run: pip install -e .
 
-      - name: Validate Feishu secret configuration
+      - name: Validate notification secret configuration
         shell: bash
         run: |
           if [[ -z "$FEISHU_WEBHOOK_URL" || -z "$FEISHU_WEBHOOK_SECRET" ]]; then
             echo '::error::FEISHU_WEBHOOK_URL and FEISHU_WEBHOOK_SECRET must be configured in repository Actions secrets.'
+            exit 1
+          fi
+          if [[ -z "$PUSHPLUS_TOKEN" || -z "$PUSHPLUS_TOPIC" ]]; then
+            echo '::error::PUSHPLUS_TOKEN and PUSHPLUS_TOPIC must be configured in repository Actions secrets.'
             exit 1
           fi
 
