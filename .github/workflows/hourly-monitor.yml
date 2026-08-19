@@ -78,7 +78,7 @@ jobs:
           restore-keys: |
             monitor-state-v1-
 
-      - name: Check six official hotel sites
+      - name: Check seven official hotel sites
         run: python -m app.cloud_run
 
       - name: Save this hourly execution log
