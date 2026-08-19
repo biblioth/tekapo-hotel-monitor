@@ -88,10 +88,20 @@ class Settings:
                 booking_url=item["booking_url"],
                 room_names=tuple(item.get("room_names", [])),
                 aliases=tuple(item.get("aliases", [])),
+                check_in=date.fromisoformat(item["check_in"]) if item.get("check_in") else None,
+                check_out=date.fromisoformat(item["check_out"]) if item.get("check_out") else None,
+                adults=int(item["adults"]) if item.get("adults") is not None else None,
             )
             for item in data
         )
         keys = [hotel.key for hotel in hotels]
         if len(keys) != len(set(keys)):
             raise ValueError("Hotel keys must be unique")
+        for hotel in hotels:
+            if (hotel.check_in is None) != (hotel.check_out is None):
+                raise ValueError(f"Hotel {hotel.key} must define both check_in and check_out")
+            if hotel.check_in and hotel.check_out and hotel.check_out <= hotel.check_in:
+                raise ValueError(f"Hotel {hotel.key} check_out must be later than check_in")
+            if hotel.adults is not None and hotel.adults < 1:
+                raise ValueError(f"Hotel {hotel.key} adults must be at least 1")
         return hotels
