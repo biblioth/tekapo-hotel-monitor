@@ -62,5 +62,16 @@
       "Standard (No View)", "Standard Queen (No View)"
     ],
     "aliases": ["Hermitage Mt Cook", "The Hermitage Hotel"]
+  },
+  {
+    "key": "tasman-hahei-beach",
+    "name": "Tasman Holiday Parks Hahei Beach",
+    "engine": "newbook",
+    "booking_url": "https://book.tasmanholidayparks.com/hahei-beach/",
+    "room_names": [],
+    "aliases": ["Hahei Beach Resort", "Hahei Tasman Holiday Park"],
+    "check_in": "2027-02-12",
+    "check_out": "2027-02-13",
+    "adults": 2
   }
 ]
