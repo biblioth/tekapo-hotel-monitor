@@ -21,6 +21,7 @@ class DirectWebsiteProvider:
         "no room available",
         "no rooms found",
         "no room found",
+        "no availability",
         "sold out",
         "not available",
         "this accommodation is unavailable",
@@ -29,6 +30,9 @@ class DirectWebsiteProvider:
         "couldn't find any available",
         "could not find any available",
         "property is not bookable during these dates",
+        "do not meet the required criteria for a booking",
+        "there are currently no sites available for online bookings",
+        "there are currently no rates available for online bookings",
     )
     _action_re = re.compile(r"\b(book|select|reserve|choose|add room|view rates?)\b", re.I)
     _price_re = re.compile(
@@ -127,6 +131,7 @@ class DirectWebsiteProvider:
             "siteminder": self._check_siteminder,
             "accor": self._check_accor,
             "agilysys": self._check_agilysys,
+            "newbook": self._check_newbook,
         }
         try:
             handler = handlers[hotel.engine]
@@ -134,17 +139,25 @@ class DirectWebsiteProvider:
             raise RuntimeError(f"Unsupported booking engine: {hotel.engine}") from exc
         return await handler(page, hotel)
 
+    def _stay(self, hotel: Hotel) -> tuple[date, date, int]:
+        return (
+            hotel.check_in or self.settings.check_in,
+            hotel.check_out or self.settings.check_out,
+            hotel.adults or self.settings.adults,
+        )
+
     async def _goto(self, page: Any, url: str) -> None:
         await page.goto(url, wait_until="domcontentloaded")
         await page.locator("body").wait_for(state="visible")
 
     async def _check_preno(self, page: Any, hotel: Hotel) -> HotelResult:
+        check_in, check_out, _ = self._stay(hotel)
         await self._goto(page, hotel.booking_url)
         await page.locator("#CheckIn-Date").wait_for()
         await page.wait_for_timeout(3500)
-        await self._choose_preno_date(page, "#CheckIn-Date", self.settings.check_in)
+        await self._choose_preno_date(page, "#CheckIn-Date", check_in)
         await self._choose_preno_date(
-            page, "#CheckOut-Date", self.settings.check_out, reuse_open_picker=True
+            page, "#CheckOut-Date", check_out, reuse_open_picker=True
         )
         await page.locator("#searchbutton").click()
         await page.wait_for_timeout(3500)
@@ -200,12 +213,13 @@ class DirectWebsiteProvider:
         raise RuntimeError("Lakeview page loaded, but its booking state was not recognisable")
 
     async def _check_ibex(self, page: Any, hotel: Hotel) -> HotelResult:
+        check_in_date, check_out_date, _ = self._stay(hotel)
         await self._goto(page, hotel.booking_url)
         check_in = page.locator('input[placeholder="Check In Date"]')
         check_out = page.locator('input[placeholder="Check Out Date"]')
         await check_in.wait_for()
-        await self._fill_date(check_in, self.settings.check_in.strftime("%d/%m/%Y"))
-        await self._fill_date(check_out, self.settings.check_out.strftime("%d/%m/%Y"))
+        await self._fill_date(check_in, check_in_date.strftime("%d/%m/%Y"))
+        await self._fill_date(check_out, check_out_date.strftime("%d/%m/%Y"))
         await page.get_by_role("button", name="Search", exact=True).click()
         await page.wait_for_timeout(4500)
         return await self._result_from_page(page, hotel, "Grand Suites")
@@ -219,12 +233,13 @@ class DirectWebsiteProvider:
         )
 
     async def _check_siteminder(self, page: Any, hotel: Hotel) -> HotelResult:
+        check_in, check_out, adults = self._stay(hotel)
         query = urlencode(
             {
                 "locale": "en",
-                "checkInDate": self.settings.check_in.isoformat(),
-                "checkOutDate": self.settings.check_out.isoformat(),
-                "items[0][adults]": self.settings.adults,
+                "checkInDate": check_in.isoformat(),
+                "checkOutDate": check_out.isoformat(),
+                "items[0][adults]": adults,
                 "items[0][children]": 0,
                 "items[0][infants]": 0,
                 "currency": self.settings.currency,
@@ -241,12 +256,13 @@ class DirectWebsiteProvider:
         return await self._result_from_page(page, hotel, "Galaxy")
 
     async def _check_accor(self, page: Any, hotel: Hotel) -> HotelResult:
-        nights = (self.settings.check_out - self.settings.check_in).days
+        check_in, check_out, adults = self._stay(hotel)
+        nights = (check_out - check_in).days
         query = urlencode(
             {
-                "dateIn": self.settings.check_in.isoformat(),
+                "dateIn": check_in.isoformat(),
                 "nights": nights,
-                "compositions": self.settings.adults,
+                "compositions": adults,
                 "stayplus": "false",
                 "snu": "false",
                 "hideHotelDetails": "true",
@@ -257,6 +273,7 @@ class DirectWebsiteProvider:
         return await self._result_from_page(page, hotel, "Peppers Bluewater Resort")
 
     async def _check_agilysys(self, page: Any, hotel: Hotel) -> HotelResult:
+        check_in, check_out, _ = self._stay(hotel)
         await self._goto(page, hotel.booking_url)
         date_input = page.locator('input[placeholder="Click for Arrival-Departure date"]')
         await date_input.wait_for()
@@ -264,17 +281,85 @@ class DirectWebsiteProvider:
         await page.locator('[automationid="offer-filter-datepicker"]').click(force=True)
         picker = page.locator(".md-drppicker").last
         await picker.locator(".calendar.left select.yearselect").select_option(
-            label=str(self.settings.check_in.year), force=True
+            label=str(check_in.year), force=True
         )
         await picker.locator(".calendar.left select.monthselect").select_option(
-            value=str(self.settings.check_in.month - 1), force=True
+            value=str(check_in.month - 1), force=True
         )
-        await self._click_agilysys_day(page, self.settings.check_in.day)
-        await self._click_agilysys_day(page, self.settings.check_out.day)
+        await self._click_agilysys_day(page, check_in.day)
+        await self._click_agilysys_day(page, check_out.day)
         await page.wait_for_timeout(750)
         await page.locator('#offersCard0 button[automationid="offerSelectButton0"]').click()
         await page.wait_for_timeout(6000)
         return await self._result_from_page(page, hotel, "Hermitage Hotel")
+
+    async def _check_newbook(self, page: Any, hotel: Hotel) -> HotelResult:
+        check_in, check_out, adults = self._stay(hotel)
+        query = urlencode(
+            {
+                "force_category_type_id": 1,
+                "available_from": check_in.isoformat(),
+                "available_to": check_out.isoformat(),
+                "adults": adults,
+            }
+        )
+        await self._goto(page, f"{hotel.booking_url}?{query}")
+        await page.locator("#newbook_availability_content").wait_for()
+        await page.wait_for_timeout(4500)
+
+        offers: list[Offer] = []
+        for card in await page.locator(".newbook_online_category_box").all():
+            text = await card.inner_text()
+            if not re.search(r"\bBook now\b", text, re.I):
+                continue
+            name_locator = card.locator(".newbook_online_category_row_category_name a").first
+            if await name_locator.count() == 0:
+                continue
+            room_name = re.sub(r"\s+", " ", await name_locator.inner_text()).strip()
+            price_locator = card.locator(".newbook_online_from_price_text").first
+            price_label = (
+                re.sub(r"\s+", " ", await price_locator.inner_text()).strip()
+                if await price_locator.count()
+                else None
+            )
+            offers.append(self._newbook_offer(hotel, room_name, price_label, text, page.url))
+
+        if offers:
+            return HotelResult(
+                hotel=hotel,
+                status="available",
+                offers=tuple(offers),
+                property_name=hotel.name,
+                raw_summary={"engine": hotel.engine, "url": page.url},
+            )
+
+        body = await page.locator("body").inner_text()
+        folded = body.casefold()
+        if any(term in folded for term in self._unavailable_terms):
+            return self._unavailable(
+                hotel, "Official booking engine has no bookable one-night stay", page.url
+            )
+        raise RuntimeError("Newbook page loaded, but no definitive availability state was found")
+
+    @staticmethod
+    def _newbook_offer(
+        hotel: Hotel,
+        room_name: str,
+        price_label: str | None,
+        details: str,
+        link: str,
+    ) -> Offer:
+        numeric = re.sub(r"[^0-9.]", "", (price_label or "").replace(",", ""))
+        return Offer(
+            source=hotel.name,
+            room_name=room_name,
+            link=link,
+            price_label=price_label,
+            price_value=float(numeric) if numeric else None,
+            total_price_label=price_label,
+            free_cancellation=bool(re.search(r"cancel", details, re.I)),
+            official=True,
+        )
 
     @staticmethod
     async def _click_agilysys_day(page: Any, day: int) -> None:
