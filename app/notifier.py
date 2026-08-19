@@ -21,6 +21,7 @@ HOTEL_SHORT_NAMES = {
     "Galaxy Boutique Hotel": "Galaxy Boutique",
     "Peppers Bluewater Resort Lake Tekapo": "Peppers Bluewater",
     "The Hermitage Hotel Mt Cook": "Hermitage Mt Cook",
+    "Tasman Holiday Parks Hahei Beach": "Hahei Beach",
 }
 
 
@@ -49,10 +50,12 @@ def render_alert(settings: Settings, event: dict[str, Any]) -> str:
     payload = event["payload"]
     offers = payload["offers"]
     headline = "重新放房" if event["event_type"] == "availability_returned" else "出现新房型"
+    check_in = payload.get("check_in") or settings.check_in.isoformat()
+    check_out = payload.get("check_out") or settings.check_out.isoformat()
     lines = [
-        "🔔 Lake Tekapo 捡漏",
+        "🔔 LakeWatch 酒店捡漏",
         f"{payload['hotel_name']}：{headline}",
-        f"入住：{settings.check_in.isoformat()} → {settings.check_out.isoformat()}",
+        f"入住：{check_in} → {check_out}",
     ]
     for offer in offers[:5]:
         cancellation = "不可免费取消/未披露"
