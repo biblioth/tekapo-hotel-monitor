@@ -79,3 +79,41 @@ def test_same_room_is_deduplicated_to_lowest_official_rate(tmp_path: Path) -> No
     offers = provider.extract_offers(hotel(), text)
     assert len(offers) == 1
     assert offers[0].price_value == 480
+
+
+def test_hotel_specific_stay_overrides_global_dates(tmp_path: Path) -> None:
+    provider = DirectWebsiteProvider(settings(tmp_path))
+    hahei = Hotel(
+        "hahei",
+        "Tasman Holiday Parks Hahei Beach",
+        "newbook",
+        "https://example.com/book",
+        check_in=date(2027, 2, 12),
+        check_out=date(2027, 2, 13),
+        adults=2,
+    )
+
+    assert provider._stay(hahei) == (date(2027, 2, 12), date(2027, 2, 13), 2)
+
+
+def test_builds_newbook_offer_from_official_card(tmp_path: Path) -> None:
+    provider = DirectWebsiteProvider(settings(tmp_path))
+    hahei = Hotel(
+        "hahei",
+        "Tasman Holiday Parks Hahei Beach",
+        "newbook",
+        "https://example.com/book",
+    )
+
+    offer = provider._newbook_offer(
+        hahei,
+        "Sea View Villas",
+        "$423.00",
+        "72 Hour Cancellation, Terms and conditions apply!",
+        "https://example.com/book?dates",
+    )
+
+    assert offer.room_name == "Sea View Villas"
+    assert offer.price_value == 423
+    assert offer.free_cancellation is True
+    assert offer.official is True
