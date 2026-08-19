@@ -1,2 +1,1 @@
-"""Lake Tekapo hotel availability monitor."""
-
+"""LakeWatch official-site hotel availability monitor."""
