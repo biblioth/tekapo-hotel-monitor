@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 import unicodedata
 from dataclasses import asdict, dataclass, field
+from datetime import date
 from typing import Any, Literal
 
 
@@ -19,6 +20,9 @@ class Hotel:
     booking_url: str
     room_names: tuple[str, ...] = ()
     aliases: tuple[str, ...] = ()
+    check_in: date | None = None
+    check_out: date | None = None
+    adults: int | None = None
 
 
 @dataclass(frozen=True)
