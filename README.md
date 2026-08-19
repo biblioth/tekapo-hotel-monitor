@@ -9,6 +9,7 @@
 [![Hourly monitor](https://github.com/biblioth/tekapo-hotel-monitor/actions/workflows/hourly-monitor.yml/badge.svg)](https://github.com/biblioth/tekapo-hotel-monitor/actions/workflows/hourly-monitor.yml)
 [![Daily summary](https://github.com/biblioth/tekapo-hotel-monitor/actions/workflows/daily-summary.yml/badge.svg)](https://github.com/biblioth/tekapo-hotel-monitor/actions/workflows/daily-summary.yml)
 [![Python 3.12](https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![Version](https://img.shields.io/badge/version-1.1.0-0A7B83)](#更新日志)
 [![Cost](https://img.shields.io/badge/运行成本-NZ%240-brightgreen)](#为什么是免费的)
 
 **安静监控 · 官网直查 · 飞书 / 微信双推送 · 每日简报**
@@ -154,6 +155,24 @@ pytest
 - 酒店官网可能改版、限流或弹出验证码；系统会记录异常，并在下个小时自动重试。
 - 请保持每小时一次的友好频率，避免对酒店官网造成不必要的请求。
 - 房态和价格以最终预订页面为准；收到提醒后仍应尽快打开官网确认并下单。
+
+## 更新日志
+
+### v1.1.0 · 2026-08-19
+
+- 新增 **Tasman Holiday Parks Hahei Beach** 官网监控，行程为 2027-02-12 至 2027-02-13。
+- 支持为每家酒店单独配置入住日期、退房日期和住客人数；原有 6 家酒店行程保持不变。
+- 接入 Hahei 使用的 Newbook 官方预订引擎；只有真正出现 `Book now` 的房型才判定为可订，两晚起订等限制不会误报。
+- 提醒消息会显示发生变化酒店对应的行程日期，并将通知标题统一为 **LakeWatch 酒店捡漏**。
+- 云端检查改用 GitHub runner 预装的 Google Chrome，移除容易受软件源波动影响的每小时系统依赖安装。
+- 监控范围由 6 家扩展至 7 家，继续保留每小时日志、每日简报、飞书与微信双渠道提醒。
+
+### v1.0.0 · 2026-08-13
+
+- LakeWatch 首个可用版本上线，覆盖 Lake Tekapo / Mt Cook 的 6 家酒店官网。
+- 建立“首次运行只保存基线、仅新放房或新房型提醒”的安静监控机制。
+- 支持飞书机器人和 PushPlus 微信服务号双渠道推送。
+- 使用 GitHub Actions 免费云端定时运行，并保存执行日志与每日简报。
 
 ---
 
