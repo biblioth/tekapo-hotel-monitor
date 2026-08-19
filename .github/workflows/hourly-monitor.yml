@@ -15,7 +15,9 @@ concurrency:
 
 jobs:
   monitor:
-    runs-on: ubuntu-latest
+    # Pin the hosted image and use its preinstalled Chrome. This avoids running
+    # apt against the Azure Ubuntu mirror on every hourly check.
+    runs-on: ubuntu-24.04
     timeout-minutes: 25
     env:
       FEISHU_WEBHOOK_URL: ${{ secrets.FEISHU_WEBHOOK_URL }}
@@ -29,6 +31,7 @@ jobs:
       CHECK_TIMEZONE: Pacific/Auckland
       BROWSER_TIMEOUT_SECONDS: "75"
       BROWSER_RETRIES: "2"
+      CHROMIUM_EXECUTABLE_PATH: /usr/bin/google-chrome
       DATABASE_PATH: data/monitor.db
       LOG_FILE: data/monitor.jsonl
       HOTELS_FILE: hotels.json
@@ -59,19 +62,13 @@ jobs:
             exit 1
           fi
 
-      - name: Read Playwright version
-        id: playwright
+      - name: Verify preinstalled Chrome
         shell: bash
-        run: echo "version=$(python -c 'import importlib.metadata; print(importlib.metadata.version("playwright"))')" >> "$GITHUB_OUTPUT"
-
-      - name: Cache Chromium
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-chromium-${{ runner.os }}-${{ steps.playwright.outputs.version }}
-
-      - name: Install Chromium system dependencies
-        run: python -m playwright install --with-deps chromium
+        timeout-minutes: 2
+        run: |
+          test -x "$CHROMIUM_EXECUTABLE_PATH"
+          "$CHROMIUM_EXECUTABLE_PATH" --version
+          python -c 'import os; from playwright.sync_api import sync_playwright; p = sync_playwright().start(); b = p.chromium.launch(executable_path=os.environ["CHROMIUM_EXECUTABLE_PATH"], headless=True); b.close(); p.stop()'
 
       - name: Restore previous availability state
         uses: actions/cache@v4
