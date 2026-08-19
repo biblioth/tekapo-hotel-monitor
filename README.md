@@ -2,9 +2,9 @@
 
 # 🏨 LakeWatch
 
-### Lake Tekapo / Mt Cook 酒店放房监控
+### 新西兰酒店官网放房监控
 
-每小时自动检查 6 家酒店官网。只在真正出现新房时提醒，不用守着网页反复刷新。
+每小时自动检查 7 家酒店官网。每家酒店可使用独立入住日期，只在真正出现新房时提醒。
 
 [![Hourly monitor](https://github.com/biblioth/tekapo-hotel-monitor/actions/workflows/hourly-monitor.yml/badge.svg)](https://github.com/biblioth/tekapo-hotel-monitor/actions/workflows/hourly-monitor.yml)
 [![Daily summary](https://github.com/biblioth/tekapo-hotel-monitor/actions/workflows/daily-summary.yml/badge.svg)](https://github.com/biblioth/tekapo-hotel-monitor/actions/workflows/daily-summary.yml)
@@ -30,11 +30,13 @@
 
 ## 当前监控行程
 
-| 项目 | 配置 |
+| 行程 | 酒店 | 入住 → 退房 | 住客 |
+| --- | --- | --- | --- |
+| Lake Tekapo / Mt Cook | 6 家 | **2027-02-05 → 2027-02-06** | 2 位成人 |
+| Hahei Beach | 1 家 | **2027-02-12 → 2027-02-13** | 2 位成人 |
+
+| 服务 | 配置 |
 | --- | --- |
-| 入住 | **2027-02-05** |
-| 退房 | **2027-02-06** |
-| 住客 | **2 位成人** |
 | 频率 | **每小时一次** |
 | 数据源 | **酒店官网 / 官方预订引擎** |
 | 提醒渠道 | **飞书机器人 + PushPlus 微信服务号** |
@@ -48,13 +50,14 @@
 4. Galaxy Boutique Hotel
 5. Peppers Bluewater Resort Lake Tekapo
 6. The Hermitage Hotel Mt Cook
+7. Tasman Holiday Parks Hahei Beach（原 Hahei Beach Resort）
 
 > 原需求中的 “Herimage Mt Cook” 已按 **The Hermitage Hotel Mt Cook** 处理。
 
 ## 收到的提醒长这样
 
 ```text
-🔔 Lake Tekapo 捡漏
+🔔 LakeWatch 酒店捡漏
 
 Peppers Bluewater Resort 放房
 房型：Deluxe Lake View Room
@@ -71,7 +74,7 @@ Peppers Bluewater Resort 放房
 
 ```mermaid
 flowchart LR
-    A[GitHub Actions<br/>每小时启动] --> B[检查 6 家酒店官网]
+    A[GitHub Actions<br/>每小时启动] --> B[检查 7 家酒店官网]
     B --> C[与上一次有效房态比较]
     C -->|新放房 / 新房型| D[飞书 + 微信提醒]
     C -->|没有变化| E[保持安静]
@@ -89,7 +92,7 @@ flowchart LR
 
 需要了解的边界：
 
-- 仓库代码、酒店名单和入住日期是公开的。
+- 仓库代码、酒店名单及每家酒店的入住日期是公开的。
 - 飞书 Webhook、签名密钥和 PushPlus 消息 Token 存放在 GitHub Actions Secrets 中，不会出现在代码里。
 - GitHub 定时任务可能在高峰期延迟几分钟，不适合秒级抢房。
 - 每月心跳工作流会保持定时任务活跃，避免公开仓库长期无提交后被暂停。
