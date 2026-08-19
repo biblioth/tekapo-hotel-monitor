@@ -200,6 +200,16 @@ class Database:
                             {
                                 "hotel_name": result.hotel.name,
                                 "property_name": result.property_name,
+                                "check_in": (
+                                    result.hotel.check_in.isoformat()
+                                    if result.hotel.check_in
+                                    else None
+                                ),
+                                "check_out": (
+                                    result.hotel.check_out.isoformat()
+                                    if result.hotel.check_out
+                                    else None
+                                ),
                                 "offers": event_offers,
                             },
                             ensure_ascii=False,
