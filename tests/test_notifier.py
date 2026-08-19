@@ -3,7 +3,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from app.notifier import FanoutNotifier, PushPlusNotifier
+from app.notifier import FanoutNotifier, PushPlusNotifier, render_alert
 
 
 class FakeResponse:
@@ -115,6 +115,33 @@ async def test_pushplus_daily_summary_is_visible_in_title() -> None:
     assert client.requests[0][1]["title"] == (
         "📊 酒店监控日报｜2026-08-17｜执行 24 次｜成功 24｜异常 0｜放房变化 0｜已提醒 0"
     )
+
+
+def test_alert_uses_hotel_specific_dates() -> None:
+    settings = SimpleNamespace(check_in=date(2027, 2, 5), check_out=date(2027, 2, 6))
+    event = {
+        "event_type": "availability_returned",
+        "payload": {
+            "hotel_name": "Tasman Holiday Parks Hahei Beach",
+            "check_in": "2027-02-12",
+            "check_out": "2027-02-13",
+            "offers": [
+                {
+                    "room_name": "Sea View Villas",
+                    "price_label": "$423.00",
+                    "free_cancellation": True,
+                    "source": "Tasman Holiday Parks Hahei Beach",
+                    "official": True,
+                    "link": "https://example.com/book",
+                }
+            ],
+        },
+    }
+
+    message = render_alert(settings, event)
+
+    assert "入住：2027-02-12 → 2027-02-13" in message
+    assert message.startswith("🔔 LakeWatch 酒店捡漏")
 
 
 @pytest.mark.asyncio
