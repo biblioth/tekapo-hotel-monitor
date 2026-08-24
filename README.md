@@ -9,7 +9,7 @@
 [![Hourly monitor](https://github.com/biblioth/tekapo-hotel-monitor/actions/workflows/hourly-monitor.yml/badge.svg)](https://github.com/biblioth/tekapo-hotel-monitor/actions/workflows/hourly-monitor.yml)
 [![Daily summary](https://github.com/biblioth/tekapo-hotel-monitor/actions/workflows/daily-summary.yml/badge.svg)](https://github.com/biblioth/tekapo-hotel-monitor/actions/workflows/daily-summary.yml)
 [![Python 3.12](https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white)](https://www.python.org/)
-[![Version](https://img.shields.io/badge/version-1.1.1-0A7B83)](#更新日志)
+[![Version](https://img.shields.io/badge/version-1.1.2-0A7B83)](#更新日志)
 [![Cost](https://img.shields.io/badge/运行成本-NZ%240-brightgreen)](#为什么是免费的)
 
 **安静监控 · 官网直查 · 飞书 / 微信双推送 · 每日简报**
@@ -157,6 +157,12 @@ pytest
 - 房态和价格以最终预订页面为准；收到提醒后仍应尽快打开官网确认并下单。
 
 ## 更新日志
+
+### v1.1.2 · 2026-08-24
+
+- 优化飞书和微信日报文案，将重复异常记录与受影响酒店数量分开展示。
+- 单家酒店多次异常时明确提示“仅涉及 1 家”并显示酒店简称，避免误解为整个监控服务异常。
+- 无异常的日报改为“全部正常”，微信通知标题也会直接显示异常范围，无需点开确认。
 
 ### v1.1.1 · 2026-08-24
 

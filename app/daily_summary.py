@@ -11,7 +11,7 @@ from zoneinfo import ZoneInfo
 from app.config import Settings
 from app.database import Database
 from app.logging_config import configure_logging
-from app.notifier import FanoutNotifier
+from app.notifier import HOTEL_SHORT_NAMES, FanoutNotifier
 
 logger = logging.getLogger(__name__)
 
@@ -40,19 +40,64 @@ def build_summary(
 
     successful = sum(run.get("status") == "success" for run in runs)
     errors = sum(int(run.get("error_count") or 0) for run in runs)
+    hotel_errors, affected_hotels, other_errors = error_breakdown(runs, snapshots)
     changes = sum(int(run.get("change_count") or 0) for run in runs)
     notifications = sum(int(run.get("notification_count") or 0) for run in runs)
     available = sum(snapshot.get("status") == "available" for snapshot in snapshots)
     unavailable = sum(snapshot.get("status") == "unavailable" for snapshot in snapshots)
 
-    return "\n".join(
+    lines = [title]
+    if errors:
+        lines.append(f"执行 {len(runs)} 次｜完整正常 {successful} 次")
+        if hotel_errors:
+            scope = "仅涉及" if len(affected_hotels) == 1 else "涉及"
+            names = "、".join(affected_hotels[:3])
+            if len(affected_hotels) > 3:
+                names += f"等 {len(affected_hotels)} 家"
+            lines.append(
+                f"酒店检查异常 {hotel_errors} 次｜{scope} {len(affected_hotels)} 家：{names}"
+            )
+        if other_errors:
+            lines.append(f"通知或其他异常 {other_errors} 次")
+    else:
+        lines.append(f"执行 {len(runs)} 次｜全部正常")
+    lines.extend(
         [
-            title,
-            f"执行 {len(runs)} 次｜成功 {successful}｜异常 {errors}",
             f"放房变化 {changes}｜已提醒 {notifications}",
             f"当前：有房 {available} 家｜无房 {unavailable} 家",
         ]
     )
+    return "\n".join(lines)
+
+
+def error_breakdown(
+    runs: list[dict[str, Any]], snapshots: list[dict[str, Any]]
+) -> tuple[int, list[str], int]:
+    """Separate repeated hotel failures from notification or unclassified errors."""
+    names_by_key = {
+        str(snapshot["hotel_key"]): str(snapshot["hotel_name"])
+        for snapshot in snapshots
+        if snapshot.get("hotel_key") and snapshot.get("hotel_name")
+    }
+    hotel_error_count = 0
+    affected_keys: set[str] = set()
+    total_errors = 0
+
+    for run in runs:
+        total_errors += int(run.get("error_count") or 0)
+        summary = run.get("summary") or {}
+        for hotel in summary.get("hotels") or []:
+            if hotel.get("status") != "error":
+                continue
+            hotel_error_count += 1
+            if hotel.get("key"):
+                affected_keys.add(str(hotel["key"]))
+
+    affected_hotels = sorted(
+        HOTEL_SHORT_NAMES.get(names_by_key.get(key, key), names_by_key.get(key, key))
+        for key in affected_keys
+    )
+    return hotel_error_count, affected_hotels, max(0, total_errors - hotel_error_count)
 
 
 async def send_daily_summary() -> dict[str, Any]:
@@ -70,6 +115,7 @@ async def send_daily_summary() -> dict[str, Any]:
     runs = runs_for_local_date(database.latest_runs(500), target_date, summary_timezone)
     snapshots = database.snapshots()
     message = build_summary(target_date, runs, snapshots)
+    hotel_errors, affected_hotels, other_errors = error_breakdown(runs, snapshots)
 
     try:
         await notifier.send_text(message)
@@ -80,6 +126,9 @@ async def send_daily_summary() -> dict[str, Any]:
         "date": target_date.isoformat(),
         "runs": len(runs),
         "errors": sum(int(run.get("error_count") or 0) for run in runs),
+        "hotel_errors": hotel_errors,
+        "affected_hotels": affected_hotels,
+        "other_errors": other_errors,
         "changes": sum(int(run.get("change_count") or 0) for run in runs),
         "notifications": sum(int(run.get("notification_count") or 0) for run in runs),
     }

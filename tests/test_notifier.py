@@ -105,7 +105,7 @@ async def test_pushplus_daily_summary_is_visible_in_title() -> None:
     notifier = PushPlusNotifier(settings, client=client)
     message = (
         "📊 酒店监控日报｜2026-08-17\n"
-        "执行 24 次｜成功 24｜异常 0\n"
+        "执行 24 次｜全部正常\n"
         "放房变化 0｜已提醒 0\n"
         "当前：有房 1 家｜无房 5 家"
     )
@@ -113,8 +113,25 @@ async def test_pushplus_daily_summary_is_visible_in_title() -> None:
     await notifier.send_text(message)
 
     assert client.requests[0][1]["title"] == (
-        "📊 酒店监控日报｜2026-08-17｜执行 24 次｜成功 24｜异常 0｜放房变化 0｜已提醒 0"
+        "📊 酒店监控日报｜2026-08-17｜执行 24 次｜全部正常｜放房变化 0｜已提醒 0"
     )
+
+
+@pytest.mark.asyncio
+async def test_pushplus_title_shows_single_affected_hotel() -> None:
+    settings = SimpleNamespace(pushplus_token="test-message-token", pushplus_topic="lakewatch20270205")
+    client = FakeClient({"code": 200, "msg": "请求成功"})
+    notifier = PushPlusNotifier(settings, client=client)
+    message = (
+        "📊 酒店监控日报｜2026-08-23\n"
+        "执行 22 次｜完整正常 16 次\n"
+        "酒店检查异常 6 次｜仅涉及 1 家：Hahei Beach\n"
+        "放房变化 0｜已提醒 0"
+    )
+
+    await notifier.send_text(message)
+
+    assert "仅涉及 1 家：Hahei Beach" in client.requests[0][1]["title"]
 
 
 def test_alert_uses_hotel_specific_dates() -> None:
