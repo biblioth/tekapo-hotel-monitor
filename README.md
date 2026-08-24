@@ -9,7 +9,7 @@
 [![Hourly monitor](https://github.com/biblioth/tekapo-hotel-monitor/actions/workflows/hourly-monitor.yml/badge.svg)](https://github.com/biblioth/tekapo-hotel-monitor/actions/workflows/hourly-monitor.yml)
 [![Daily summary](https://github.com/biblioth/tekapo-hotel-monitor/actions/workflows/daily-summary.yml/badge.svg)](https://github.com/biblioth/tekapo-hotel-monitor/actions/workflows/daily-summary.yml)
 [![Python 3.12](https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white)](https://www.python.org/)
-[![Version](https://img.shields.io/badge/version-1.1.0-0A7B83)](#更新日志)
+[![Version](https://img.shields.io/badge/version-1.1.1-0A7B83)](#更新日志)
 [![Cost](https://img.shields.io/badge/运行成本-NZ%240-brightgreen)](#为什么是免费的)
 
 **安静监控 · 官网直查 · 飞书 / 微信双推送 · 每日简报**
@@ -157,6 +157,12 @@ pytest
 - 房态和价格以最终预订页面为准；收到提醒后仍应尽快打开官网确认并下单。
 
 ## 更新日志
+
+### v1.1.1 · 2026-08-24
+
+- 优化 Hahei 的 Newbook 动态页面识别：不再固定等待 4.5 秒，而是最长等待 30 秒直至出现明确房态。
+- 补充最低入住晚数、建议更换日期等无房提示，减少官网文案变化造成的技术异常。
+- 异常日志新增页面状态、查询地址和精简页面摘要，便于区分加载延迟、官网改版与真实无房。
 
 ### v1.1.0 · 2026-08-19
 

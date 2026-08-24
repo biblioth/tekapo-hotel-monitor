@@ -117,3 +117,27 @@ def test_builds_newbook_offer_from_official_card(tmp_path: Path) -> None:
     assert offer.price_value == 423
     assert offer.free_cancellation is True
     assert offer.official is True
+
+
+def test_newbook_loading_page_is_not_treated_as_unavailable(tmp_path: Path) -> None:
+    provider = DirectWebsiteProvider(settings(tmp_path))
+
+    assert provider._newbook_page_state("Loading availability…") == "loading"
+
+
+def test_newbook_minimum_stay_message_is_unavailable(tmp_path: Path) -> None:
+    provider = DirectWebsiteProvider(settings(tmp_path))
+
+    assert provider._newbook_page_state("A minimum stay of 2 nights applies") == "unavailable"
+
+
+def test_newbook_unknown_page_remains_retryable(tmp_path: Path) -> None:
+    provider = DirectWebsiteProvider(settings(tmp_path))
+
+    assert provider._newbook_page_state("Choose your accommodation") == "unknown"
+
+
+def test_newbook_diagnostic_excerpt_is_compact() -> None:
+    text = "Loading\n\n  availability   for your stay"
+
+    assert DirectWebsiteProvider._compact_excerpt(text) == "Loading availability for your stay"

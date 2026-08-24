@@ -33,7 +33,22 @@ class DirectWebsiteProvider:
         "do not meet the required criteria for a booking",
         "there are currently no sites available for online bookings",
         "there are currently no rates available for online bookings",
+        "no results found",
+        "no available accommodation was found",
+        "please try different dates",
+        "try another date",
+        "change your dates",
+        "minimum stay",
+        "minimum night",
     )
+    _newbook_loading_terms = (
+        "loading availability",
+        "verifying availability",
+        "gathering information",
+        "checking availability",
+    )
+    _newbook_wait_seconds = 30.0
+    _newbook_poll_interval_ms = 1000
     _action_re = re.compile(r"\b(book|select|reserve|choose|add room|view rates?)\b", re.I)
     _price_re = re.compile(
         r"(?P<label>(?:NZD|NZ\$|AUD|EUR|€|\$)\s*[0-9][0-9,]*(?:\.[0-9]{1,2})?)",
@@ -304,9 +319,43 @@ class DirectWebsiteProvider:
             }
         )
         await self._goto(page, f"{hotel.booking_url}?{query}")
-        await page.locator("#newbook_availability_content").wait_for()
-        await page.wait_for_timeout(4500)
+        content = page.locator("#newbook_availability_content")
+        await content.wait_for(state="visible")
 
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + self._newbook_wait_seconds
+        last_state = "unknown"
+        last_text = ""
+
+        while True:
+            offers = await self._newbook_offers_from_page(page, hotel)
+            if offers:
+                return HotelResult(
+                    hotel=hotel,
+                    status="available",
+                    offers=tuple(offers),
+                    property_name=hotel.name,
+                    raw_summary={"engine": hotel.engine, "url": page.url},
+                )
+
+            last_text = await content.inner_text()
+            last_state = self._newbook_page_state(last_text)
+            if last_state == "unavailable":
+                return self._unavailable(
+                    hotel, "Official booking engine has no bookable one-night stay", page.url
+                )
+            if loop.time() >= deadline:
+                break
+            await page.wait_for_timeout(self._newbook_poll_interval_ms)
+
+        excerpt = self._compact_excerpt(last_text)
+        raise RuntimeError(
+            "Newbook availability did not reach a terminal state "
+            f"within {self._newbook_wait_seconds:g}s "
+            f"(state={last_state}, url={page.url}): {excerpt or '<empty content>'}"
+        )
+
+    async def _newbook_offers_from_page(self, page: Any, hotel: Hotel) -> list[Offer]:
         offers: list[Offer] = []
         for card in await page.locator(".newbook_online_category_box").all():
             text = await card.inner_text()
@@ -323,23 +372,20 @@ class DirectWebsiteProvider:
                 else None
             )
             offers.append(self._newbook_offer(hotel, room_name, price_label, text, page.url))
+        return offers
 
-        if offers:
-            return HotelResult(
-                hotel=hotel,
-                status="available",
-                offers=tuple(offers),
-                property_name=hotel.name,
-                raw_summary={"engine": hotel.engine, "url": page.url},
-            )
+    @classmethod
+    def _newbook_page_state(cls, text: str) -> str:
+        folded = text.casefold()
+        if any(term in folded for term in cls._unavailable_terms):
+            return "unavailable"
+        if any(term in folded for term in cls._newbook_loading_terms):
+            return "loading"
+        return "unknown"
 
-        body = await page.locator("body").inner_text()
-        folded = body.casefold()
-        if any(term in folded for term in self._unavailable_terms):
-            return self._unavailable(
-                hotel, "Official booking engine has no bookable one-night stay", page.url
-            )
-        raise RuntimeError("Newbook page loaded, but no definitive availability state was found")
+    @staticmethod
+    def _compact_excerpt(text: str, limit: int = 500) -> str:
+        return re.sub(r"\s+", " ", text).strip()[:limit]
 
     @staticmethod
     def _newbook_offer(
