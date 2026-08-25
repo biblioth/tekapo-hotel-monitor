@@ -54,7 +54,7 @@ class Settings:
             cron_minute=int(os.getenv("CHECK_CRON_MINUTE", "7")),
             run_on_startup=_bool("RUN_ON_STARTUP", True),
             browser_timeout_seconds=int(os.getenv("BROWSER_TIMEOUT_SECONDS", "75")),
-            browser_retries=int(os.getenv("BROWSER_RETRIES", "2")),
+            browser_retries=int(os.getenv("BROWSER_RETRIES", "3")),
             chromium_executable_path=os.getenv("CHROMIUM_EXECUTABLE_PATH") or None,
             database_path=Path(os.getenv("DATABASE_PATH", "data/monitor.db")),
             log_file=Path(os.getenv("LOG_FILE", "data/monitor.jsonl")),

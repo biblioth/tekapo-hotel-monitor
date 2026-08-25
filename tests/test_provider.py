@@ -141,3 +141,9 @@ def test_newbook_diagnostic_excerpt_is_compact() -> None:
     text = "Loading\n\n  availability   for your stay"
 
     assert DirectWebsiteProvider._compact_excerpt(text) == "Loading availability for your stay"
+
+
+def test_browser_retry_uses_bounded_exponential_backoff() -> None:
+    delays = [DirectWebsiteProvider._retry_delay_seconds(attempt) for attempt in range(4)]
+
+    assert delays == [5.0, 10.0, 15.0, 15.0]

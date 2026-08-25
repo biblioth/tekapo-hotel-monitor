@@ -30,7 +30,7 @@ jobs:
       CURRENCY: NZD
       CHECK_TIMEZONE: Pacific/Auckland
       BROWSER_TIMEOUT_SECONDS: "75"
-      BROWSER_RETRIES: "2"
+      BROWSER_RETRIES: "3"
       CHROMIUM_EXECUTABLE_PATH: /usr/bin/google-chrome
       DATABASE_PATH: data/monitor.db
       LOG_FILE: data/monitor.jsonl

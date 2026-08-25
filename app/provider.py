@@ -47,8 +47,10 @@ class DirectWebsiteProvider:
         "gathering information",
         "checking availability",
     )
-    _newbook_wait_seconds = 30.0
+    _newbook_wait_seconds = 20.0
     _newbook_poll_interval_ms = 1000
+    _retry_base_delay_seconds = 5.0
+    _retry_max_delay_seconds = 15.0
     _action_re = re.compile(r"\b(book|select|reserve|choose|add room|view rates?)\b", re.I)
     _price_re = re.compile(
         r"(?P<label>(?:NZD|NZ\$|AUD|EUR|€|\$)\s*[0-9][0-9,]*(?:\.[0-9]{1,2})?)",
@@ -126,7 +128,13 @@ class DirectWebsiteProvider:
                     extra={"hotel_key": hotel.key},
                 )
                 if attempt + 1 < self.settings.browser_retries:
-                    await asyncio.sleep(2**attempt)
+                    retry_delay = self._retry_delay_seconds(attempt)
+                    logger.info(
+                        "Retrying official website after %.0fs",
+                        retry_delay,
+                        extra={"hotel_key": hotel.key},
+                    )
+                    await asyncio.sleep(retry_delay)
             finally:
                 if context is not None:
                     await context.close()
@@ -137,6 +145,10 @@ class DirectWebsiteProvider:
             message=f"Official booking site query failed: {last_error}",
             raw_summary={"engine": hotel.engine, "url": hotel.booking_url},
         )
+
+    @classmethod
+    def _retry_delay_seconds(cls, attempt: int) -> float:
+        return min(cls._retry_base_delay_seconds * (2**attempt), cls._retry_max_delay_seconds)
 
     async def _dispatch(self, page: Any, hotel: Hotel) -> HotelResult:
         handlers = {

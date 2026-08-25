@@ -9,7 +9,7 @@
 [![Hourly monitor](https://github.com/biblioth/tekapo-hotel-monitor/actions/workflows/hourly-monitor.yml/badge.svg)](https://github.com/biblioth/tekapo-hotel-monitor/actions/workflows/hourly-monitor.yml)
 [![Daily summary](https://github.com/biblioth/tekapo-hotel-monitor/actions/workflows/daily-summary.yml/badge.svg)](https://github.com/biblioth/tekapo-hotel-monitor/actions/workflows/daily-summary.yml)
 [![Python 3.12](https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white)](https://www.python.org/)
-[![Version](https://img.shields.io/badge/version-1.1.2-0A7B83)](#更新日志)
+[![Version](https://img.shields.io/badge/version-1.1.3-0A7B83)](#更新日志)
 [![Cost](https://img.shields.io/badge/运行成本-NZ%240-brightgreen)](#为什么是免费的)
 
 **安静监控 · 官网直查 · 飞书 / 微信双推送 · 每日简报**
@@ -157,6 +157,12 @@ pytest
 - 房态和价格以最终预订页面为准；收到提醒后仍应尽快打开官网确认并下单。
 
 ## 更新日志
+
+### v1.1.3 · 2026-08-25
+
+- 官网检查由 2 次尝试提升为 3 次，并使用 5 秒、10 秒的递增等待，降低瞬时断网和官网短暂限流造成的异常。
+- Hahei 单次动态加载等待由 30 秒调整为 20 秒，以相近的最坏耗时换取更多独立重试机会。
+- 新增重试等待日志，便于区分官网持续故障与下一次尝试即可恢复的网络抖动。
 
 ### v1.1.2 · 2026-08-24
 
