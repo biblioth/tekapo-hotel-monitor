@@ -52,7 +52,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         await notifier.close()
 
 
-app = FastAPI(title="LakeWatch Hotel Monitor", version="1.1.3", lifespan=lifespan)
+app = FastAPI(title="LakeWatch Hotel Monitor", version="1.1.4", lifespan=lifespan)
 
 
 @app.get("/healthz")

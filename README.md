@@ -9,7 +9,7 @@
 [![Hourly monitor](https://github.com/biblioth/tekapo-hotel-monitor/actions/workflows/hourly-monitor.yml/badge.svg)](https://github.com/biblioth/tekapo-hotel-monitor/actions/workflows/hourly-monitor.yml)
 [![Daily summary](https://github.com/biblioth/tekapo-hotel-monitor/actions/workflows/daily-summary.yml/badge.svg)](https://github.com/biblioth/tekapo-hotel-monitor/actions/workflows/daily-summary.yml)
 [![Python 3.12](https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white)](https://www.python.org/)
-[![Version](https://img.shields.io/badge/version-1.1.3-0A7B83)](#更新日志)
+[![Version](https://img.shields.io/badge/version-1.1.4-0A7B83)](#更新日志)
 [![Cost](https://img.shields.io/badge/运行成本-NZ%240-brightgreen)](#为什么是免费的)
 
 **安静监控 · 官网直查 · 飞书 / 微信双推送 · 每日简报**
@@ -75,12 +75,13 @@ Peppers Bluewater Resort 放房
 
 ```mermaid
 flowchart LR
-    A[GitHub Actions<br/>每小时启动] --> B[检查 7 家酒店官网]
-    B --> C[与上一次有效房态比较]
-    C -->|新放房 / 新房型| D[飞书 + 微信提醒]
-    C -->|没有变化| E[保持安静]
-    B --> F[保存执行日志 90 天]
-    F --> G[每日 00:07 简报]
+    A[GitHub Actions<br/>冗余定时触发] --> B[50 分钟去重闸门]
+    B --> C[检查 7 家酒店官网]
+    C --> D[与上一次有效房态比较]
+    D -->|新放房 / 新房型| E[飞书 + 微信提醒]
+    D -->|没有变化| F[保持安静]
+    C --> G[保存执行日志 90 天]
+    G --> H[每日 00:07 简报]
 ```
 
 系统会保存最后一次有效快照，并把提醒同时交给飞书和 PushPlus。单个渠道临时失败不会挡住另一个渠道；如果两个渠道都失败，消息会保留在待发队列并在后续执行中重试。每个渠道的结果都会写入执行日志。
@@ -95,7 +96,7 @@ flowchart LR
 
 - 仓库代码、酒店名单及每家酒店的入住日期是公开的。
 - 飞书 Webhook、签名密钥和 PushPlus 消息 Token 存放在 GitHub Actions Secrets 中，不会出现在代码里。
-- GitHub 定时任务可能在高峰期延迟几分钟，不适合秒级抢房。
+- GitHub 定时事件可能在高峰期延迟或被丢弃，不适合要求严格整点或秒级抢房。本项目每小时设置 4 次错峰触发机会，并用 50 分钟去重闸门把真实官网检查限制为约每小时一次。
 - 每月心跳工作流会保持定时任务活跃，避免公开仓库长期无提交后被暂停。
 
 ## 云端部署
@@ -111,7 +112,7 @@ flowchart LR
 
 随后：
 
-- `Hourly hotel monitor` 在每小时 UTC 第 17 分检查房态。
+- `Hourly hotel monitor` 每小时设置 4 次错峰触发机会；程序会跳过距上次真实检查不足 50 分钟的冗余事件，因此官网通常仍只检查约 1 次。
 - `Daily hotel summary` 在北京时间每天 00:07 发送前一日简报。
 - 每次 JSONL 日志会作为 GitHub Actions Artifact 保存 90 天。
 - SQLite 状态通过 Actions cache 传递到下一次执行。
@@ -157,6 +158,12 @@ pytest
 - 房态和价格以最终预订页面为准；收到提醒后仍应尽快打开官网确认并下单。
 
 ## 更新日志
+
+### v1.1.4 · 2026-08-31
+
+- 修复 GitHub 原生定时事件被延迟或丢弃后、每天只执行 2–5 次的问题。
+- 每小时改为 4 次错峰触发机会，并增加基于持久化执行记录的 50 分钟去重闸门；提高触发成功率，同时避免频繁请求酒店官网。
+- 手动运行不受去重闸门限制；被跳过的冗余事件不计入执行日志和日报，也不重复保存状态或日志附件。
 
 ### v1.1.3 · 2026-08-25
 
