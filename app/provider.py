@@ -186,7 +186,10 @@ class DirectWebsiteProvider:
         await self._choose_preno_date(
             page, "#CheckOut-Date", check_out, reuse_open_picker=True
         )
-        await page.locator("#searchbutton").click()
+        # Preno can show a property announcement modal above the booking form.
+        # These controls remain active, so dispatch the clicks directly instead
+        # of waiting for the temporary overlay to stop intercepting the pointer.
+        await page.locator("#searchbutton").click(force=True)
         await page.wait_for_timeout(3500)
         return await self._result_from_page(page, hotel, "Ranginui At Lake Tekapo")
 
@@ -194,7 +197,7 @@ class DirectWebsiteProvider:
         self, page: Any, selector: str, target: date, reuse_open_picker: bool = False
     ) -> None:
         if not reuse_open_picker or await page.locator(".rdrMonthName:visible").count() == 0:
-            await page.locator(selector).click()
+            await page.locator(selector).click(force=True)
             await page.locator(".rdrMonthName:visible").first.wait_for()
         month_label = target.strftime("%b %Y")
         for _ in range(24):
