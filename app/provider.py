@@ -182,16 +182,38 @@ class DirectWebsiteProvider:
         await self._goto(page, hotel.booking_url)
         await page.locator("#CheckIn-Date").wait_for()
         await page.wait_for_timeout(3500)
+        await self._dismiss_preno_dialog(page)
         await self._choose_preno_date(page, "#CheckIn-Date", check_in)
         await self._choose_preno_date(
             page, "#CheckOut-Date", check_out, reuse_open_picker=True
         )
-        # Preno can show a property announcement modal above the booking form.
-        # These controls remain active, so dispatch the clicks directly instead
-        # of waiting for the temporary overlay to stop intercepting the pointer.
+        # Dispatch directly in case the closing modal is still animating.
         await page.locator("#searchbutton").click(force=True)
         await page.wait_for_timeout(3500)
         return await self._result_from_page(page, hotel, "Ranginui At Lake Tekapo")
+
+    async def _dismiss_preno_dialog(self, page: Any) -> None:
+        """Dismiss optional Preno property notices that cover the date picker."""
+        dialog = page.locator('[role="dialog"][aria-modal="true"]:visible').last
+        if await dialog.count() == 0:
+            return
+
+        dismiss = dialog.locator(
+            'button[data-bs-dismiss="modal"], button[data-dismiss="modal"], '
+            'button.btn-close, button.close, button[aria-label="Close"]'
+        )
+        if await dismiss.count() == 0:
+            dismiss = dialog.locator("button")
+        if await dismiss.count() > 0:
+            await dismiss.last.click(force=True)
+        else:
+            await page.keyboard.press("Escape")
+
+        try:
+            await dialog.wait_for(state="hidden", timeout=3000)
+        except Exception as exc:
+            notice = self._compact_excerpt(await dialog.inner_text())
+            raise RuntimeError(f"Preno notice could not be dismissed: {notice}") from exc
 
     async def _choose_preno_date(
         self, page: Any, selector: str, target: date, reuse_open_picker: bool = False
