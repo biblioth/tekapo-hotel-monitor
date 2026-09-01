@@ -40,7 +40,7 @@ async def run_cloud_check() -> dict[str, object]:
     settings = Settings.from_env()
     configure_logging(settings.log_file, settings.log_retention_days)
     database = Database(settings.database_path)
-    event_name = os.getenv("GITHUB_EVENT_NAME", "")
+    event_name = os.getenv("LAKEWATCH_TRIGGER_KIND") or os.getenv("GITHUB_EVENT_NAME", "")
     minimum_interval_minutes = int(os.getenv("MIN_CHECK_INTERVAL_MINUTES", "50"))
     latest_runs = database.latest_runs(1)
     latest_run = latest_runs[0] if latest_runs else None
@@ -68,7 +68,11 @@ async def run_cloud_check() -> dict[str, object]:
     )
 
     try:
-        summary = await service.run_once(trigger="github-actions")
+        trigger = {
+            "schedule": "github-schedule",
+            "workflow_dispatch": "github-manual",
+        }.get(event_name, "github-actions")
+        summary = await service.run_once(trigger=trigger)
         # GitHub caches only regular files. Move committed WAL pages back into the
         # database before the runner archives its state for the following hour.
         with database.connect() as connection:

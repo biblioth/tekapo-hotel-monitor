@@ -14,6 +14,8 @@ from app.logging_config import configure_logging
 from app.notifier import HOTEL_SHORT_NAMES, FanoutNotifier
 
 logger = logging.getLogger(__name__)
+EXPECTED_DAILY_CHECKS = 24
+MINIMUM_HEALTHY_CHECKS = 20
 
 
 def runs_for_local_date(
@@ -29,58 +31,105 @@ def runs_for_local_date(
     return selected
 
 
+def execution_breakdown(runs: list[dict[str, Any]]) -> tuple[int, int, int]:
+    """Count automatic, manual, and legacy runs whose old trigger was ambiguous."""
+    manual = sum(run.get("trigger") in {"manual", "github-manual"} for run in runs)
+    scheduled = sum(run.get("trigger") in {"schedule", "github-schedule"} for run in runs)
+    unclassified = len(runs) - manual - scheduled
+    return scheduled + unclassified, manual, unclassified
+
+
 def build_summary(
     target_date: date,
     runs: list[dict[str, Any]],
     snapshots: list[dict[str, Any]],
 ) -> str:
-    title = f"📊 酒店监控日报｜{target_date.isoformat()}"
+    title = f"📊 LakeWatch 日报｜{target_date.isoformat()}"
     if not runs:
-        return f"{title}\n昨日无执行记录，请检查 GitHub Actions。"
+        return "\n".join(
+            [
+                title,
+                "",
+                "结论：🚨 昨日监控没有运行",
+                f"执行情况：自动检查 0 次，计划约 {EXPECTED_DAILY_CHECKS} 次",
+                "房态结果：没有足够数据判断是否出现新放房",
+                "你需要做什么：订房方面暂不操作；需要尽快检查云端定时任务",
+            ]
+        )
 
     successful = sum(run.get("status") == "success" for run in runs)
     errors = sum(int(run.get("error_count") or 0) for run in runs)
-    hotel_errors, affected_hotels, other_errors = error_breakdown(runs, snapshots)
+    hotel_errors, hotel_error_details, other_errors = detailed_error_breakdown(runs, snapshots)
     changes = sum(int(run.get("change_count") or 0) for run in runs)
     notifications = sum(int(run.get("notification_count") or 0) for run in runs)
     available = sum(snapshot.get("status") == "available" for snapshot in snapshots)
     unavailable = sum(snapshot.get("status") == "unavailable" for snapshot in snapshots)
+    automatic, manual, _ = execution_breakdown(runs)
+    missing = max(0, EXPECTED_DAILY_CHECKS - automatic)
+    coverage_low = automatic < MINIMUM_HEALTHY_CHECKS
 
-    lines = [title]
-    if errors:
-        lines.append(f"执行 {len(runs)} 次｜完整正常 {successful} 次")
-        if hotel_errors:
-            scope = "仅涉及" if len(affected_hotels) == 1 else "涉及"
-            names = "、".join(affected_hotels[:3])
-            if len(affected_hotels) > 3:
-                names += f"等 {len(affected_hotels)} 家"
-            lines.append(
-                f"酒店检查异常 {hotel_errors} 次｜{scope} {len(affected_hotels)} 家：{names}"
-            )
-        if other_errors:
-            lines.append(f"通知或其他异常 {other_errors} 次")
+    if changes or notifications:
+        conclusion = "🔔 发现房态变化，提醒已经发送"
+    elif coverage_low and errors:
+        conclusion = "⚠️ 监控次数不足，且部分官网读取失败"
+    elif coverage_low:
+        conclusion = "⚠️ 监控次数不足；已完成的检查未发现新放房"
+    elif errors:
+        conclusion = "⚠️ 部分官网读取失败；其余检查未发现新放房"
     else:
-        lines.append(f"执行 {len(runs)} 次｜全部正常")
+        conclusion = "✅ 运行正常，没有发现新放房"
+
+    execution = f"执行情况：自动检查 {automatic} 次，计划约 {EXPECTED_DAILY_CHECKS} 次"
+    if missing:
+        execution += f"，少 {missing} 次"
+    elif automatic > EXPECTED_DAILY_CHECKS:
+        execution += f"，多 {automatic - EXPECTED_DAILY_CHECKS} 次"
+    else:
+        execution += "，达到计划"
+    if manual:
+        execution += f"；另有手动检查 {manual} 次"
+
+    incomplete = len(runs) - successful
+    if incomplete:
+        quality = f"检查质量：{successful} 次完整成功，{incomplete} 次未完整成功"
+    else:
+        quality = f"检查质量：全部 {successful} 次均完整成功"
+
+    lines = [title, "", f"结论：{conclusion}", execution, quality]
+    if hotel_error_details:
+        lines.append("官网读取失败：")
+        lines.extend(f"- {name}：{count} 次" for name, count in hotel_error_details)
+    if other_errors:
+        lines.append(f"- 通知发送或其他问题：{other_errors} 次")
     lines.extend(
         [
-            f"放房变化 {changes}｜已提醒 {notifications}",
-            f"当前：有房 {available} 家｜无房 {unavailable} 家",
+            f"房态结果：变化 {changes} 次；已发送提醒 {notifications} 条",
+            f"最近有效记录：有房 {available} 家；无房 {unavailable} 家",
         ]
     )
+    if notifications:
+        lines.append("你需要做什么：请查看此前的放房提醒，并尽快打开官网确认")
+    elif coverage_low and errors:
+        lines.append("你需要做什么：订房方面无需操作；云端调度次数不足，失败酒店会自动重试")
+    elif coverage_low:
+        lines.append("你需要做什么：订房方面无需操作；云端调度次数不足，系统会继续尝试运行")
+    elif errors:
+        lines.append("你需要做什么：订房方面无需操作；读取失败的酒店会在下一轮自动重试")
+    else:
+        lines.append("你需要做什么：无需操作，LakeWatch 会继续监控")
     return "\n".join(lines)
 
 
-def error_breakdown(
+def detailed_error_breakdown(
     runs: list[dict[str, Any]], snapshots: list[dict[str, Any]]
-) -> tuple[int, list[str], int]:
-    """Separate repeated hotel failures from notification or unclassified errors."""
+) -> tuple[int, list[tuple[str, int]], int]:
+    """Return per-hotel failure counts with user-facing hotel names."""
     names_by_key = {
         str(snapshot["hotel_key"]): str(snapshot["hotel_name"])
         for snapshot in snapshots
         if snapshot.get("hotel_key") and snapshot.get("hotel_name")
     }
-    hotel_error_count = 0
-    affected_keys: set[str] = set()
+    counts_by_key: dict[str, int] = {}
     total_errors = 0
 
     for run in runs:
@@ -89,15 +138,26 @@ def error_breakdown(
         for hotel in summary.get("hotels") or []:
             if hotel.get("status") != "error":
                 continue
-            hotel_error_count += 1
-            if hotel.get("key"):
-                affected_keys.add(str(hotel["key"]))
+            key = str(hotel.get("key") or "unknown")
+            counts_by_key[key] = counts_by_key.get(key, 0) + 1
 
-    affected_hotels = sorted(
-        HOTEL_SHORT_NAMES.get(names_by_key.get(key, key), names_by_key.get(key, key))
-        for key in affected_keys
+    details = sorted(
+        (
+            HOTEL_SHORT_NAMES.get(names_by_key.get(key, key), names_by_key.get(key, key)),
+            count,
+        )
+        for key, count in counts_by_key.items()
     )
-    return hotel_error_count, affected_hotels, max(0, total_errors - hotel_error_count)
+    hotel_error_count = sum(counts_by_key.values())
+    return hotel_error_count, details, max(0, total_errors - hotel_error_count)
+
+
+def error_breakdown(
+    runs: list[dict[str, Any]], snapshots: list[dict[str, Any]]
+) -> tuple[int, list[str], int]:
+    """Separate repeated hotel failures from notification or unclassified errors."""
+    hotel_errors, details, other_errors = detailed_error_breakdown(runs, snapshots)
+    return hotel_errors, [name for name, _ in details], other_errors
 
 
 async def send_daily_summary() -> dict[str, Any]:
@@ -116,6 +176,8 @@ async def send_daily_summary() -> dict[str, Any]:
     snapshots = database.snapshots()
     message = build_summary(target_date, runs, snapshots)
     hotel_errors, affected_hotels, other_errors = error_breakdown(runs, snapshots)
+    _, hotel_error_details, _ = detailed_error_breakdown(runs, snapshots)
+    automatic, manual, unclassified = execution_breakdown(runs)
 
     try:
         await notifier.send_text(message)
@@ -125,9 +187,14 @@ async def send_daily_summary() -> dict[str, Any]:
     result = {
         "date": target_date.isoformat(),
         "runs": len(runs),
+        "automatic_runs": automatic,
+        "manual_runs": manual,
+        "legacy_unclassified_runs": unclassified,
+        "successful_runs": sum(run.get("status") == "success" for run in runs),
         "errors": sum(int(run.get("error_count") or 0) for run in runs),
         "hotel_errors": hotel_errors,
         "affected_hotels": affected_hotels,
+        "hotel_error_counts": dict(hotel_error_details),
         "other_errors": other_errors,
         "changes": sum(int(run.get("change_count") or 0) for run in runs),
         "notifications": sum(int(run.get("notification_count") or 0) for run in runs),

@@ -1,8 +1,8 @@
-name: Hourly hotel monitor
+name: Hourly hotel monitor backup 23
 
 on:
   schedule:
-    - cron: "8 * * * *"
+    - cron: "23 * * * *"
   workflow_dispatch:
 
 jobs:

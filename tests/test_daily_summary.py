@@ -34,11 +34,16 @@ def test_builds_concise_daily_summary() -> None:
     ]
 
     assert build_summary(date(2026, 8, 16), runs, snapshots) == (
-        "📊 酒店监控日报｜2026-08-16\n"
-        "执行 2 次｜完整正常 1 次\n"
-        "酒店检查异常 1 次｜仅涉及 1 家：Hahei Beach\n"
-        "放房变化 1｜已提醒 1\n"
-        "当前：有房 1 家｜无房 2 家"
+        "📊 LakeWatch 日报｜2026-08-16\n"
+        "\n"
+        "结论：🔔 发现房态变化，提醒已经发送\n"
+        "执行情况：自动检查 2 次，计划约 24 次，少 22 次\n"
+        "检查质量：1 次完整成功，1 次未完整成功\n"
+        "官网读取失败：\n"
+        "- Hahei Beach：1 次\n"
+        "房态结果：变化 1 次；已发送提醒 1 条\n"
+        "最近有效记录：有房 1 家；无房 2 家\n"
+        "你需要做什么：请查看此前的放房提醒，并尽快打开官网确认"
     )
 
 
@@ -63,7 +68,7 @@ def test_repeated_errors_are_reported_as_one_affected_hotel() -> None:
 
     summary = build_summary(date(2026, 8, 23), runs, snapshots)
 
-    assert "酒店检查异常 6 次｜仅涉及 1 家：Hahei Beach" in summary
+    assert "官网读取失败：\n- Hahei Beach：6 次" in summary
 
 
 def test_clean_day_is_described_as_all_normal() -> None:
@@ -76,11 +81,45 @@ def test_clean_day_is_described_as_all_normal() -> None:
         }
     ]
 
-    assert "执行 1 次｜全部正常" in build_summary(date(2026, 8, 23), runs, [])
+    summary = build_summary(date(2026, 8, 23), runs, [])
+
+    assert "结论：⚠️ 监控次数不足；已完成的检查未发现新放房" in summary
+    assert "检查质量：全部 1 次均完整成功" in summary
+
+
+def test_separates_scheduled_and_manual_checks() -> None:
+    runs = [
+        {
+            "trigger": "github-schedule",
+            "status": "success",
+            "error_count": 0,
+            "change_count": 0,
+            "notification_count": 0,
+        }
+        for _ in range(20)
+    ]
+    runs.extend(
+        {
+            "trigger": "github-manual",
+            "status": "success",
+            "error_count": 0,
+            "change_count": 0,
+            "notification_count": 0,
+        }
+        for _ in range(3)
+    )
+
+    summary = build_summary(date(2026, 8, 31), runs, [])
+
+    assert "自动检查 20 次，计划约 24 次，少 4 次；另有手动检查 3 次" in summary
 
 
 def test_reports_missing_daily_runs() -> None:
     assert build_summary(date(2026, 8, 16), [], []) == (
-        "📊 酒店监控日报｜2026-08-16\n"
-        "昨日无执行记录，请检查 GitHub Actions。"
+        "📊 LakeWatch 日报｜2026-08-16\n"
+        "\n"
+        "结论：🚨 昨日监控没有运行\n"
+        "执行情况：自动检查 0 次，计划约 24 次\n"
+        "房态结果：没有足够数据判断是否出现新放房\n"
+        "你需要做什么：订房方面暂不操作；需要尽快检查云端定时任务"
     )

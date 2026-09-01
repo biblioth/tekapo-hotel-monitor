@@ -9,7 +9,7 @@
 [![Hourly monitor](https://github.com/biblioth/tekapo-hotel-monitor/actions/workflows/hourly-monitor.yml/badge.svg)](https://github.com/biblioth/tekapo-hotel-monitor/actions/workflows/hourly-monitor.yml)
 [![Daily summary](https://github.com/biblioth/tekapo-hotel-monitor/actions/workflows/daily-summary.yml/badge.svg)](https://github.com/biblioth/tekapo-hotel-monitor/actions/workflows/daily-summary.yml)
 [![Python 3.12](https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white)](https://www.python.org/)
-[![Version](https://img.shields.io/badge/version-1.1.4-0A7B83)](#更新日志)
+[![Version](https://img.shields.io/badge/version-1.1.5-0A7B83)](#更新日志)
 [![Cost](https://img.shields.io/badge/运行成本-NZ%240-brightgreen)](#为什么是免费的)
 
 **安静监控 · 官网直查 · 飞书 / 微信双推送 · 每日简报**
@@ -158,6 +158,14 @@ pytest
 - 房态和价格以最终预订页面为准；收到提醒后仍应尽快打开官网确认并下单。
 
 ## 更新日志
+
+### v1.1.5 · 2026-09-01
+
+- 重写飞书和微信日报：先给出明确结论，再说明自动检查次数、计划次数、差额、检查质量、房态结果以及是否需要操作。
+- 将每家酒店的官网读取失败次数分别列出，避免把“异常记录数”误解成“异常酒店数”或“整个服务故障”。
+- 从现在起区分自动定时检查和手动验证，手动排查不再抬高日报中的自动执行次数。
+- 自动执行不足 20 次时明确标记“监控次数不足”，不再用模糊的“执行 N 次”让人自行判断是否正常。
+- 将 4 个错峰时间拆成彼此独立的定时工作流，共用同一检查核心与去重闸门，进一步降低单个 GitHub 定时入口漏触发的影响。
 
 ### v1.1.4 · 2026-08-31
 

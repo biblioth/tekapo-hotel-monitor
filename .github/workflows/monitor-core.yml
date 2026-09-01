@@ -1,0 +1,111 @@
+name: Hotel monitor core
+
+on:
+  workflow_call:
+    inputs:
+      trigger_kind:
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tekapo-hotel-monitor
+  cancel-in-progress: false
+
+jobs:
+  monitor:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      FEISHU_WEBHOOK_URL: ${{ secrets.FEISHU_WEBHOOK_URL }}
+      FEISHU_WEBHOOK_SECRET: ${{ secrets.FEISHU_WEBHOOK_SECRET }}
+      PUSHPLUS_TOKEN: ${{ secrets.PUSHPLUS_TOKEN }}
+      PUSHPLUS_TOPIC: ${{ secrets.PUSHPLUS_TOPIC }}
+      CHECK_IN: "2027-02-05"
+      CHECK_OUT: "2027-02-06"
+      ADULTS: "2"
+      CURRENCY: NZD
+      CHECK_TIMEZONE: Pacific/Auckland
+      BROWSER_TIMEOUT_SECONDS: "75"
+      BROWSER_RETRIES: "3"
+      CHROMIUM_EXECUTABLE_PATH: /usr/bin/google-chrome
+      DATABASE_PATH: data/monitor.db
+      LOG_FILE: data/monitor.jsonl
+      HOTELS_FILE: hotels.json
+      LOG_RETENTION_DAYS: "90"
+      MIN_CHECK_INTERVAL_MINUTES: "50"
+      LAKEWATCH_TRIGGER_KIND: ${{ inputs.trigger_kind }}
+
+    steps:
+      - name: Check out monitor code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install monitor
+        run: pip install -e .
+
+      - name: Validate notification secret configuration
+        shell: bash
+        run: |
+          if [[ -z "$FEISHU_WEBHOOK_URL" || -z "$FEISHU_WEBHOOK_SECRET" ]]; then
+            echo '::error::FEISHU_WEBHOOK_URL and FEISHU_WEBHOOK_SECRET must be configured in repository Actions secrets.'
+            exit 1
+          fi
+          if [[ -z "$PUSHPLUS_TOKEN" || -z "$PUSHPLUS_TOPIC" ]]; then
+            echo '::error::PUSHPLUS_TOKEN and PUSHPLUS_TOPIC must be configured in repository Actions secrets.'
+            exit 1
+          fi
+
+      - name: Verify preinstalled Chrome
+        shell: bash
+        timeout-minutes: 2
+        run: |
+          test -x "$CHROMIUM_EXECUTABLE_PATH"
+          "$CHROMIUM_EXECUTABLE_PATH" --version
+          python -c 'import os; from playwright.sync_api import sync_playwright; p = sync_playwright().start(); b = p.chromium.launch(executable_path=os.environ["CHROMIUM_EXECUTABLE_PATH"], headless=True); b.close(); p.stop()'
+
+      - name: Restore previous availability state
+        uses: actions/cache/restore@v4
+        with:
+          path: data/monitor.db*
+          key: monitor-state-v1-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            monitor-state-v1-
+
+      - name: Check seven official hotel sites
+        id: monitor
+        shell: bash
+        run: |
+          set -o pipefail
+          result_file="$RUNNER_TEMP/lakewatch-result.jsonl"
+          python -m app.cloud_run | tee "$result_file"
+          status="$(tail -n 1 "$result_file" | python -c 'import json, sys; print(json.load(sys.stdin).get("status", ""))')"
+          if [[ "$status" == "skipped" ]]; then
+            echo "executed=false" >> "$GITHUB_OUTPUT"
+            echo "A recent persisted check exists; this redundant schedule event was skipped."
+          else
+            echo "executed=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Save updated availability state
+        if: steps.monitor.outputs.executed == 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: data/monitor.db*
+          key: monitor-state-v1-${{ github.run_id }}-${{ github.run_attempt }}
+
+      - name: Save this hourly execution log
+        if: always() && steps.monitor.outputs.executed != 'false'
+        uses: actions/upload-artifact@v4
+        with:
+          name: monitor-log-${{ github.run_id }}-${{ github.run_attempt }}
+          path: data/monitor.jsonl*
+          if-no-files-found: warn
+          retention-days: 90
