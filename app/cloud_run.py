@@ -4,35 +4,14 @@ import asyncio
 import json
 import logging
 import os
-from datetime import UTC, datetime, timedelta
-from typing import Any
 
 from app.config import Settings
 from app.database import Database
 from app.logging_config import configure_logging
 from app.notifier import FanoutNotifier
 from app.provider import DirectWebsiteProvider
+from app.schedule_guard import should_skip_scheduled_run
 from app.service import MonitorService
-
-
-def should_skip_scheduled_run(
-    latest_run: dict[str, Any] | None,
-    *,
-    event_name: str,
-    now: datetime | None = None,
-    minimum_interval_minutes: int = 50,
-) -> bool:
-    """Keep redundant GitHub cron events from checking sites too frequently."""
-    if event_name != "schedule" or latest_run is None:
-        return False
-
-    started_at = datetime.fromisoformat(str(latest_run["started_at"]).replace("Z", "+00:00"))
-    if started_at.tzinfo is None:
-        started_at = started_at.replace(tzinfo=UTC)
-    current_time = now or datetime.now(UTC)
-    if current_time.tzinfo is None:
-        current_time = current_time.replace(tzinfo=UTC)
-    return current_time - started_at < timedelta(minutes=minimum_interval_minutes)
 
 
 async def run_cloud_check() -> dict[str, object]:

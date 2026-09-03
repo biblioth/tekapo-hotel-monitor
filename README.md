@@ -9,7 +9,7 @@
 [![Hourly monitor](https://github.com/biblioth/tekapo-hotel-monitor/actions/workflows/hourly-monitor.yml/badge.svg)](https://github.com/biblioth/tekapo-hotel-monitor/actions/workflows/hourly-monitor.yml)
 [![Daily summary](https://github.com/biblioth/tekapo-hotel-monitor/actions/workflows/daily-summary.yml/badge.svg)](https://github.com/biblioth/tekapo-hotel-monitor/actions/workflows/daily-summary.yml)
 [![Python 3.12](https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white)](https://www.python.org/)
-[![Version](https://img.shields.io/badge/version-1.1.5-0A7B83)](#更新日志)
+[![Version](https://img.shields.io/badge/version-1.1.6-0A7B83)](#更新日志)
 [![Cost](https://img.shields.io/badge/运行成本-NZ%240-brightgreen)](#为什么是免费的)
 
 **安静监控 · 官网直查 · 飞书 / 微信双推送 · 每日简报**
@@ -96,7 +96,7 @@ flowchart LR
 
 - 仓库代码、酒店名单及每家酒店的入住日期是公开的。
 - 飞书 Webhook、签名密钥和 PushPlus 消息 Token 存放在 GitHub Actions Secrets 中，不会出现在代码里。
-- GitHub 定时事件可能在高峰期延迟或被丢弃，不适合要求严格整点或秒级抢房。本项目每小时设置 4 次错峰触发机会，并用 50 分钟去重闸门把真实官网检查限制为约每小时一次。
+- GitHub 定时事件可能在高峰期延迟或被丢弃，不适合要求严格整点或秒级抢房。本项目每 5 分钟提供一次轻量候选触发，并用 50 分钟去重闸门把真实官网检查限制为约每小时一次。
 - 每月心跳工作流会保持定时任务活跃，避免公开仓库长期无提交后被暂停。
 
 ## 云端部署
@@ -112,7 +112,7 @@ flowchart LR
 
 随后：
 
-- `Hourly hotel monitor` 每小时设置 4 次错峰触发机会；程序会跳过距上次真实检查不足 50 分钟的冗余事件，因此官网通常仍只检查约 1 次。
+- `Hourly hotel monitor` 每 5 分钟尝试唤醒一次；轻量闸门会在安装依赖和启动浏览器前跳过距上次真实检查不足 50 分钟的候选事件，因此官网通常仍只检查约 1 次。
 - `Daily hotel summary` 在北京时间每天 00:07 发送前一日简报。
 - 每次 JSONL 日志会作为 GitHub Actions Artifact 保存 90 天。
 - SQLite 状态通过 Actions cache 传递到下一次执行。
@@ -158,6 +158,12 @@ pytest
 - 房态和价格以最终预订页面为准；收到提醒后仍应尽快打开官网确认并下单。
 
 ## 更新日志
+
+### v1.1.6 · 2026-09-03
+
+- 针对 GitHub 原生定时事件集中延迟、丢弃导致每日检查次数骤减的问题，将候选唤醒频率提高到每 5 分钟一次。
+- 将 50 分钟去重闸门提前到依赖安装和浏览器启动之前；冗余候选只读取持久化时间戳，不访问任何酒店官网。
+- 合并原有 4 个小时级工作流，避免备份任务集中到达时排队，同时保持公开仓库标准 runner 的免费运行方式。
 
 ### v1.1.5 · 2026-09-01
 

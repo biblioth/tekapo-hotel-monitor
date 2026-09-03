@@ -2,7 +2,10 @@ name: Hourly hotel monitor
 
 on:
   schedule:
-    - cron: "8 * * * *"
+    # GitHub may delay or drop scheduled events. Frequent off-peak candidates
+    # improve delivery; the persisted 50-minute gate still permits only one
+    # real hotel check per hour.
+    - cron: "3,8,13,18,23,28,33,38,43,48,53,58 * * * *"
   workflow_dispatch:
 
 jobs:

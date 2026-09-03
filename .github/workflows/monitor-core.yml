@@ -42,16 +42,40 @@ jobs:
       - name: Check out monitor code
         uses: actions/checkout@v4
 
+      - name: Restore previous availability state
+        uses: actions/cache/restore@v4
+        with:
+          path: data/monitor.db*
+          key: monitor-state-v1-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            monitor-state-v1-
+
+      - name: Check whether a full monitor run is due
+        id: gate
+        shell: bash
+        run: |
+          set -o pipefail
+          decision="$(python3 -m app.schedule_guard)"
+          echo "$decision"
+          should_run="$(printf '%s' "$decision" | python3 -c 'import json, sys; print(str(json.load(sys.stdin)["should_run"]).lower())')"
+          echo "should_run=$should_run" >> "$GITHUB_OUTPUT"
+          if [[ "$should_run" != "true" ]]; then
+            echo "A recent persisted check exists; this redundant schedule event was skipped before browser setup."
+          fi
+
       - name: Set up Python
+        if: steps.gate.outputs.should_run == 'true'
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
           cache: pip
 
       - name: Install monitor
+        if: steps.gate.outputs.should_run == 'true'
         run: pip install -e .
 
       - name: Validate notification secret configuration
+        if: steps.gate.outputs.should_run == 'true'
         shell: bash
         run: |
           if [[ -z "$FEISHU_WEBHOOK_URL" || -z "$FEISHU_WEBHOOK_SECRET" ]]; then
@@ -64,6 +88,7 @@ jobs:
           fi
 
       - name: Verify preinstalled Chrome
+        if: steps.gate.outputs.should_run == 'true'
         shell: bash
         timeout-minutes: 2
         run: |
@@ -71,15 +96,8 @@ jobs:
           "$CHROMIUM_EXECUTABLE_PATH" --version
           python -c 'import os; from playwright.sync_api import sync_playwright; p = sync_playwright().start(); b = p.chromium.launch(executable_path=os.environ["CHROMIUM_EXECUTABLE_PATH"], headless=True); b.close(); p.stop()'
 
-      - name: Restore previous availability state
-        uses: actions/cache/restore@v4
-        with:
-          path: data/monitor.db*
-          key: monitor-state-v1-${{ github.run_id }}-${{ github.run_attempt }}
-          restore-keys: |
-            monitor-state-v1-
-
       - name: Check seven official hotel sites
+        if: steps.gate.outputs.should_run == 'true'
         id: monitor
         shell: bash
         run: |
@@ -95,14 +113,14 @@ jobs:
           fi
 
       - name: Save updated availability state
-        if: steps.monitor.outputs.executed == 'true'
+        if: steps.gate.outputs.should_run == 'true' && steps.monitor.outputs.executed == 'true'
         uses: actions/cache/save@v4
         with:
           path: data/monitor.db*
           key: monitor-state-v1-${{ github.run_id }}-${{ github.run_attempt }}
 
       - name: Save this hourly execution log
-        if: always() && steps.monitor.outputs.executed != 'false'
+        if: always() && steps.gate.outputs.should_run == 'true' && steps.monitor.outputs.executed != 'false'
         uses: actions/upload-artifact@v4
         with:
           name: monitor-log-${{ github.run_id }}-${{ github.run_attempt }}
