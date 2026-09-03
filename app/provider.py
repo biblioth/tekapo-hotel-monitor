@@ -47,8 +47,10 @@ class DirectWebsiteProvider:
         "gathering information",
         "checking availability",
     )
-    _newbook_wait_seconds = 20.0
+    _newbook_wait_seconds = 45.0
     _newbook_poll_interval_ms = 1000
+    _newbook_retry_base_delay_seconds = 15.0
+    _newbook_retry_max_delay_seconds = 30.0
     _retry_base_delay_seconds = 5.0
     _retry_max_delay_seconds = 15.0
     _action_re = re.compile(r"\b(book|select|reserve|choose|add room|view rates?)\b", re.I)
@@ -128,7 +130,7 @@ class DirectWebsiteProvider:
                     extra={"hotel_key": hotel.key},
                 )
                 if attempt + 1 < self.settings.browser_retries:
-                    retry_delay = self._retry_delay_seconds(attempt)
+                    retry_delay = self._retry_delay_seconds(attempt, hotel.engine)
                     logger.info(
                         "Retrying official website after %.0fs",
                         retry_delay,
@@ -147,7 +149,12 @@ class DirectWebsiteProvider:
         )
 
     @classmethod
-    def _retry_delay_seconds(cls, attempt: int) -> float:
+    def _retry_delay_seconds(cls, attempt: int, engine: str | None = None) -> float:
+        if engine == "newbook":
+            return min(
+                cls._newbook_retry_base_delay_seconds * (2**attempt),
+                cls._newbook_retry_max_delay_seconds,
+            )
         return min(cls._retry_base_delay_seconds * (2**attempt), cls._retry_max_delay_seconds)
 
     async def _dispatch(self, page: Any, hotel: Hotel) -> HotelResult:
@@ -347,6 +354,49 @@ class DirectWebsiteProvider:
 
     async def _check_newbook(self, page: Any, hotel: Hotel) -> HotelResult:
         check_in, check_out, adults = self._stay(hotel)
+        loop = asyncio.get_running_loop()
+        diagnostics: dict[str, Any] = {
+            "request_seen": False,
+            "request_started_at": None,
+            "http_status": None,
+            "response_elapsed_ms": None,
+            "request_failure": None,
+            "page_error": None,
+        }
+
+        def is_availability_request(url: str) -> bool:
+            return (
+                "api.php" in url
+                and "newbook_api_action=availability_chart_responsive" in url
+            )
+
+        def on_request(request: Any) -> None:
+            if is_availability_request(request.url):
+                diagnostics["request_seen"] = True
+                diagnostics["request_started_at"] = loop.time()
+
+        def on_response(response: Any) -> None:
+            if not is_availability_request(response.url):
+                return
+            diagnostics["http_status"] = response.status
+            started_at = diagnostics["request_started_at"]
+            if isinstance(started_at, (int, float)):
+                diagnostics["response_elapsed_ms"] = round(
+                    (loop.time() - started_at) * 1000
+                )
+
+        def on_request_failed(request: Any) -> None:
+            if is_availability_request(request.url):
+                diagnostics["request_failure"] = request.failure or "unknown network failure"
+
+        def on_page_error(error: Any) -> None:
+            diagnostics["page_error"] = self._compact_excerpt(str(error), limit=240)
+
+        page.on("request", on_request)
+        page.on("response", on_response)
+        page.on("requestfailed", on_request_failed)
+        page.on("pageerror", on_page_error)
+
         query = urlencode(
             {
                 "force_category_type_id": 1,
@@ -359,7 +409,6 @@ class DirectWebsiteProvider:
         content = page.locator("#newbook_availability_content")
         await content.wait_for(state="visible")
 
-        loop = asyncio.get_running_loop()
         deadline = loop.time() + self._newbook_wait_seconds
         last_state = "unknown"
         last_text = ""
@@ -381,6 +430,12 @@ class DirectWebsiteProvider:
                 return self._unavailable(
                     hotel, "Official booking engine has no bookable one-night stay", page.url
                 )
+            network_error = self._newbook_network_error(diagnostics)
+            if network_error is not None:
+                raise RuntimeError(
+                    "Newbook availability request failed "
+                    f"({self._newbook_diagnostic_summary(diagnostics)}): {network_error}"
+                )
             if loop.time() >= deadline:
                 break
             await page.wait_for_timeout(self._newbook_poll_interval_ms)
@@ -389,7 +444,35 @@ class DirectWebsiteProvider:
         raise RuntimeError(
             "Newbook availability did not reach a terminal state "
             f"within {self._newbook_wait_seconds:g}s "
-            f"(state={last_state}, url={page.url}): {excerpt or '<empty content>'}"
+            f"(state={last_state}, {self._newbook_diagnostic_summary(diagnostics)}, "
+            f"url={page.url}): {excerpt or '<empty content>'}"
+        )
+
+    @staticmethod
+    def _newbook_network_error(diagnostics: dict[str, Any]) -> str | None:
+        failure = diagnostics.get("request_failure")
+        if failure:
+            return str(failure)
+        status = diagnostics.get("http_status")
+        if isinstance(status, int) and status >= 400:
+            return f"HTTP {status}"
+        return None
+
+    @staticmethod
+    def _newbook_diagnostic_summary(diagnostics: dict[str, Any]) -> str:
+        request_state = "seen" if diagnostics.get("request_seen") else "not-seen"
+        status = diagnostics.get("http_status")
+        elapsed = diagnostics.get("response_elapsed_ms")
+        failure = diagnostics.get("request_failure")
+        page_error = diagnostics.get("page_error")
+        return ", ".join(
+            (
+                f"api_request={request_state}",
+                f"api_status={status if status is not None else 'none'}",
+                f"api_response_ms={elapsed if elapsed is not None else 'none'}",
+                f"request_failure={failure or 'none'}",
+                f"page_error={page_error or 'none'}",
+            )
         )
 
     async def _newbook_offers_from_page(self, page: Any, hotel: Hotel) -> list[Offer]:

@@ -147,3 +147,40 @@ def test_browser_retry_uses_bounded_exponential_backoff() -> None:
     delays = [DirectWebsiteProvider._retry_delay_seconds(attempt) for attempt in range(4)]
 
     assert delays == [5.0, 10.0, 15.0, 15.0]
+
+
+def test_newbook_retry_uses_longer_bounded_backoff() -> None:
+    delays = [
+        DirectWebsiteProvider._retry_delay_seconds(attempt, "newbook")
+        for attempt in range(4)
+    ]
+
+    assert delays == [15.0, 30.0, 30.0, 30.0]
+
+
+def test_newbook_network_error_reports_http_and_transport_failures() -> None:
+    assert DirectWebsiteProvider._newbook_network_error({"http_status": 429}) == "HTTP 429"
+    assert (
+        DirectWebsiteProvider._newbook_network_error(
+            {"http_status": None, "request_failure": "net::ERR_TIMED_OUT"}
+        )
+        == "net::ERR_TIMED_OUT"
+    )
+    assert DirectWebsiteProvider._newbook_network_error({"http_status": 200}) is None
+
+
+def test_newbook_diagnostic_summary_keeps_missing_values_explicit() -> None:
+    summary = DirectWebsiteProvider._newbook_diagnostic_summary(
+        {
+            "request_seen": True,
+            "http_status": 200,
+            "response_elapsed_ms": 1234,
+            "request_failure": None,
+            "page_error": None,
+        }
+    )
+
+    assert "api_request=seen" in summary
+    assert "api_status=200" in summary
+    assert "api_response_ms=1234" in summary
+    assert "request_failure=none" in summary
