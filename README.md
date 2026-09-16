@@ -178,6 +178,7 @@ pytest
 - GitHub 浏览器复核改为按酒店执行，并通过带鉴权的 `/validation` 回调返回结果，不再为一次候选检查全部 7 家。
 - 通知改由 Cloudflare Queue 按飞书、PushPlus 两个渠道分别投递、记录和重试。
 - 新增 D1 日报、15 分钟陈旧检测、90 天历史清理，以及 `CLOUDFLARE_PRIMARY` 安全切换开关。
+- 新增由 GitHub 独立执行的 Cloudflare 健康看门狗，Worker 或 Cron 整体失联时工作流会失败告警。
 - 酒店日期、住客数和传感器参数统一收口到 `hotels.json`；Cloudflare 默认继续以影子模式运行。
 
 ### v1.1.8 · 2026-09-16

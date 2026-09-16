@@ -138,3 +138,6 @@ Rollback is the reverse: set `SHADOW_MODE=true`, deploy, and set
   hotel has not reported for 150 minutes, validation is stuck for 45 minutes,
   notification delivery is stuck for two hours, or no notification channel is
   configured. Shadow mode intentionally checks only the sensor path.
+- GitHub's `Cloudflare health watchdog` probes `/health` hourly from outside
+  Cloudflare. A non-200 response fails the workflow and preserves the response
+  as an artifact, so a total Worker/Cron outage is still externally visible.

@@ -1,0 +1,52 @@
+name: Cloudflare health watchdog
+
+on:
+  schedule:
+    - cron: "27 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cloudflare-health-watchdog
+  cancel-in-progress: true
+
+jobs:
+  health:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    env:
+      HEALTH_URL: https://lakewatch-sensor.spicyao-lakewatch.workers.dev/health
+
+    steps:
+      - name: Check Cloudflare monitoring health
+        id: probe
+        shell: bash
+        run: |
+          set +e
+          http_status="$(curl --silent --show-error \
+            --retry 2 --retry-all-errors --connect-timeout 10 --max-time 30 \
+            --output health.json --write-out '%{http_code}' "$HEALTH_URL")"
+          curl_status="$?"
+          set -e
+
+          if [[ -s health.json ]]; then
+            python3 -m json.tool health.json || cat health.json
+          fi
+          if [[ "$curl_status" -ne 0 ]]; then
+            echo "::error::Cloudflare health request failed with curl status $curl_status."
+            exit "$curl_status"
+          fi
+          if [[ "$http_status" != "200" ]]; then
+            echo "::error::Cloudflare health returned HTTP $http_status."
+            exit 1
+          fi
+
+      - name: Preserve unhealthy response
+        if: failure() && hashFiles('health.json') != ''
+        uses: actions/upload-artifact@v7
+        with:
+          name: cloudflare-health-${{ github.run_id }}-${{ github.run_attempt }}
+          path: health.json
+          retention-days: 30
