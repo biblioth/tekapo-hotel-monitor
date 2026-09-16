@@ -4,15 +4,16 @@
 
 ### 新西兰酒店官网放房监控
 
-每小时自动检查 7 家酒店官网。每家酒店可使用独立入住日期，只在真正出现新房时提醒。
+云端持续检查 7 家酒店官网：5 家官方接口每 5 分钟检查，2 家浏览器酒店每小时检查。每家酒店可使用独立入住日期，只在真正出现新房时提醒。
 
-[![Hourly monitor](https://github.com/biblioth/tekapo-hotel-monitor/actions/workflows/hourly-monitor.yml/badge.svg)](https://github.com/biblioth/tekapo-hotel-monitor/actions/workflows/hourly-monitor.yml)
-[![Daily summary](https://github.com/biblioth/tekapo-hotel-monitor/actions/workflows/daily-summary.yml/badge.svg)](https://github.com/biblioth/tekapo-hotel-monitor/actions/workflows/daily-summary.yml)
+[![Tests](https://github.com/biblioth/tekapo-hotel-monitor/actions/workflows/tests.yml/badge.svg)](https://github.com/biblioth/tekapo-hotel-monitor/actions/workflows/tests.yml)
+[![Cloudflare health](https://github.com/biblioth/tekapo-hotel-monitor/actions/workflows/cloudflare-health.yml/badge.svg)](https://github.com/biblioth/tekapo-hotel-monitor/actions/workflows/cloudflare-health.yml)
+[![Cloudflare Workers](https://img.shields.io/badge/Cloudflare-Workers-F38020?logo=cloudflare&logoColor=white)](https://lakewatch-sensor.spicyao-lakewatch.workers.dev/health)
 [![Python 3.12](https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![Version](https://img.shields.io/badge/version-1.2.0-0A7B83)](#更新日志)
 [![Cost](https://img.shields.io/badge/运行成本-NZ%240-brightgreen)](#为什么是免费的)
 
-**安静监控 · 官网直查 · 飞书 / 微信双推送 · 每日简报**
+**安静监控 · 官网直查 · 飞书 / 微信公众号 / 微信 ClawBot · 每日简报**
 
 </div>
 
@@ -38,10 +39,11 @@
 
 | 服务 | 配置 |
 | --- | --- |
-| 频率 | **每小时一次** |
+| 频率 | **5 家每 5 分钟 + 2 家每小时** |
 | 数据源 | **酒店官网 / 官方预订引擎** |
-| 提醒渠道 | **飞书机器人 + PushPlus 微信服务号** |
+| 提醒渠道 | **飞书机器人 + PushPlus 微信公众号 + 微信 ClawBot** |
 | 每日简报 | **北京时间每天 00:07** |
+| 生产状态 | **Cloudflare 主监控已启用；旧 GitHub 定时任务由开关跳过** |
 
 监控酒店：
 
@@ -68,10 +70,8 @@ NZ$420 · 免费取消至 2027/2/3
 
 ```text
 📊 LakeWatch 日报｜2026-09-16
-⚠️ 有短暂异常｜未发现新房
-自动检查 24/24 次
-官网异常：Hahei Beach：失败 3 次（已恢复）
-系统将继续自动重试｜无需手动处理
+✅ 高频监控正常｜未发现新房
+传感器周期 288/288 次｜酒店探测 1440 次
 ```
 
 即使全天没有新房，也能确认服务仍在正常工作。官网异常只写入日志和次日日报，不会另外发送即时故障提醒；只有真正发现新房才会立即通知。
@@ -80,56 +80,61 @@ NZ$420 · 免费取消至 2027/2/3
 
 ```mermaid
 flowchart LR
-    A[GitHub Actions<br/>冗余定时触发] --> B[50 分钟去重闸门]
-    B --> C[检查 7 家酒店官网]
-    C --> D[与上一次有效房态比较]
-    D -->|新放房 / 新房型| E[飞书 + 微信提醒]
-    D -->|没有变化| F[保持安静]
-    C --> G[保存执行日志 90 天]
-    G --> H[每日 00:07 简报]
+    A[Cloudflare Cron<br/>每 5 分钟] --> B[5 家官方接口传感器]
+    B --> C[D1 状态机与 90 天记录]
+    C -->|候选房态| D[GitHub Actions<br/>定向 Playwright 复核]
+    A -->|每小时| D
+    D -->|鉴权回调| C
+    C -->|确认新放房 / 新房型| E[Cloudflare Queue]
+    E --> F[飞书]
+    E --> G[PushPlus 公众号]
+    E --> H[微信 ClawBot]
+    C -->|每日 00:07| E
 ```
 
-系统会保存最后一次有效快照，并把提醒同时交给飞书和 PushPlus。单个渠道临时失败不会挡住另一个渠道；如果两个渠道都失败，消息会保留在待发队列并在后续执行中重试。每个渠道的结果都会写入执行日志。
+Cloudflare Worker 负责高频传感、状态比较、日报和通知队列。官方接口出现候选房态时，只启动对应酒店的浏览器复核；Lakeview 和 Galaxy 两家纯浏览器酒店每小时定向检查。D1 是唯一状态源，只有浏览器确认后的变化才能进入通知队列。
+
+飞书、PushPlus 公众号和 ClawBot 分别记录投递结果并独立重试，一个渠道失败不会挡住其他渠道。`/health` 会检查传感器新鲜度、浏览器回调、待验证事件和通知积压，GitHub 的外部健康看门狗每小时从 Cloudflare 之外进行探测。
 
 ## 为什么是免费的
 
-本项目直接读取酒店公开的官网预订页，不依赖 SerpApi 或其他付费酒店搜索 API。它运行在**公开 GitHub 仓库**的标准 GitHub Actions runner 上，因此不消耗付费 Actions 分钟，Mac 关机后也会继续执行。
+本项目直接读取酒店公开的官网预订页，不依赖 SerpApi 或其他付费酒店搜索 API。高频部分运行在 Cloudflare Workers、D1 和 Queues；浏览器复核使用**公开 GitHub 仓库**的标准 GitHub Actions runner。Mac 关机后两部分都会继续运行。
 
-云端检查直接使用 GitHub Ubuntu runner 预装的 Google Chrome，不在每个小时重复下载浏览器或通过 Ubuntu 软件源安装系统依赖，从而减少外部镜像波动导致的超时。
+按当前频率和数据量，设计目标是在 Cloudflare Free 与公开仓库 GitHub Actions 免费范围内运行。Cloudflare 或 GitHub 未来调整额度时仍需重新核对；可参考 [Workers 限额](https://developers.cloudflare.com/workers/platform/limits/)、[D1 定价](https://developers.cloudflare.com/d1/platform/pricing/) 和 [GitHub Actions 计费说明](https://docs.github.com/en/billing/concepts/product-billing/github-actions)。
 
 需要了解的边界：
 
 - 仓库代码、酒店名单及每家酒店的入住日期是公开的。
-- 飞书 Webhook、签名密钥和 PushPlus 消息 Token 存放在 GitHub Actions Secrets 中，不会出现在代码里。
-- GitHub 定时事件可能在高峰期延迟或被丢弃，不适合要求严格整点或秒级抢房。本项目将 12 个错峰时间拆成独立的小时级工作流，并用 50 分钟去重闸门把真实官网检查限制为约每小时一次。
-- 每月心跳工作流会保持定时任务活跃，避免公开仓库长期无提交后被暂停。
+- 飞书、PushPlus、GitHub 和回调凭据保存在 Worker Secrets 或 GitHub Actions Secrets 中，不会提交到仓库。
+- Cloudflare Cron 可能存在短暂调度延迟；酒店官网也可能限流、改版或启用验证码，因此本项目追求可靠捡漏，不承诺秒级发现。
+- GitHub Actions 只承担按酒店触发的 Playwright 复核和外部健康检查；旧版整站小时监控保留为回滚路径，生产环境不会执行。
 
 ## 云端部署
 
-1. 创建一个 **Public** GitHub 仓库并上传本项目；不要提交 `.env`。
-2. 进入 `Settings → Secrets and variables → Actions`，添加：
+当前仓库已经完成生产部署。下面是新环境或 Fork 的最短配置路径，完整命令、迁移和回滚说明见 [`cloudflare/README.md`](cloudflare/README.md)。
+
+1. 创建公开 GitHub 仓库，不要提交 `.env`、Token 或 Webhook。
+2. 在 `cloudflare/` 中安装依赖并登录 Wrangler：
+
+   ```bash
+   npm ci
+   npx wrangler login
+   ```
+
+3. 创建 D1 数据库、通知队列和死信队列，将实际 D1 ID 写入 `wrangler.jsonc`，再执行 `schema.sql`。
+4. 用 `wrangler secret put` 配置：
+   - `ADMIN_TOKEN`
+   - `VALIDATION_TOKEN`
+   - `GITHUB_TOKEN`
    - `FEISHU_WEBHOOK_URL`
    - `FEISHU_WEBHOOK_SECRET`
    - `PUSHPLUS_TOKEN`
-   - `PUSHPLUS_TOPIC`（当前群组编码：`lakewatch20270205`）
-   - `PUSHPLUS_CHANNELS`（仓库变量；同时使用公众号和微信 ClawBot 时填 `wechat,clawbot`）
-3. 进入 `Actions → Hourly hotel monitor → Run workflow`，手动执行一次以建立基线。
-4. 检查 Actions 页面是否出现绿色成功状态。
+   - `PUSHPLUS_TOPIC`
+5. 在 GitHub Actions Secrets 配置 `CLOUDFLARE_VALIDATION_URL` 和 `CLOUDFLARE_VALIDATION_TOKEN`。
+6. 部署 Worker，确认 `/health` 返回 `mode: active` 和 `ok: true`。
+7. 在 `wrangler.jsonc` 中将 `PUSHPLUS_CHANNELS` 设为 `wechat,clawbot`；将 GitHub 仓库变量 `CLOUDFLARE_PRIMARY` 设为 `true`。
 
-随后：
-
-- 12 个 `Hourly hotel monitor` 独立入口分别在每小时的 03、08、13、18、23、28、33、38、43、48、53、58 分尝试唤醒；轻量闸门会在安装依赖和启动浏览器前跳过距上次真实检查不足 50 分钟的候选事件，因此官网通常仍只检查约 1 次。
-- `Daily hotel summary` 在北京时间每天 00:07 发送前一日简报。
-- 每次 JSONL 日志会作为 GitHub Actions Artifact 保存 90 天。
-- SQLite 状态通过 Actions cache 传递到下一次执行。
-
-### Cloudflare 高频主监控
-
-`cloudflare/` 中包含每 5 分钟运行的 API 传感器、D1 状态机、定向
-Playwright 复核和 Queue 通知实现。生产配置为 `SHADOW_MODE=false`，并通过
-仓库变量 `CLOUDFLARE_PRIMARY=true` 将 Cloudflare 设为唯一主监控，不会与
-旧 GitHub 定时监控重复通知。部署、验证与回滚步骤见
-[`cloudflare/README.md`](cloudflare/README.md)。
+生产配置使用 `SHADOW_MODE=false`。回滚时先把 Worker 改回 `SHADOW_MODE=true` 并部署，再把 `CLOUDFLARE_PRIMARY` 改为 `false`，旧 GitHub 小时监控即可接管。
 
 ## 本地运行（可选）
 
@@ -167,8 +172,9 @@ pytest
 
 ## 使用提示
 
-- 酒店官网可能改版、限流或弹出验证码；系统会记录异常，并在下个小时自动重试。
-- 请保持每小时一次的友好频率，避免对酒店官网造成不必要的请求。
+- 酒店官网可能改版、限流或弹出验证码；系统会记录异常，并按退避策略自动重试。
+- 高频检查只调用已确认的官方预订接口；完整浏览器访问保持按需或每小时一次，避免对官网造成不必要的请求。
+- 微信 ClawBot 受平台会话限制：每 24 小时或累计下发 10 条消息后，需要主动给 ClawBot 发一句话重新激活，因此飞书和公众号仍应保留。
 - 房态和价格以最终预订页面为准；收到提醒后仍应尽快打开官网确认并下单。
 
 ## 更新日志
@@ -177,10 +183,11 @@ pytest
 
 - Cloudflare 高频传感器改为 D1 唯一状态源；候选房态在 Playwright 回写确认前不会覆盖已确认快照。
 - GitHub 浏览器复核改为按酒店执行，并通过带鉴权的 `/validation` 回调返回结果，不再为一次候选检查全部 7 家。
-- 通知改由 Cloudflare Queue 按飞书、PushPlus 两个渠道分别投递、记录和重试。
+- 通知改由 Cloudflare Queue 按飞书、PushPlus 公众号和 ClawBot 分别投递、记录和重试。
 - 新增 D1 日报、15 分钟陈旧检测、90 天历史清理，以及 `CLOUDFLARE_PRIMARY` 安全切换开关。
 - 新增由 GitHub 独立执行的 Cloudflare 健康看门狗，Worker 或 Cron 整体失联时工作流会失败告警。
-- 酒店日期、住客数和传感器参数统一收口到 `hotels.json`；Cloudflare 默认继续以影子模式运行。
+- PushPlus 增加微信 ClawBot 通道，与微信公众号、飞书分别投递和重试。
+- 酒店日期、住客数和传感器参数统一收口到 `hotels.json`；Cloudflare 已结束影子运行并切换为唯一主监控。
 
 ### v1.1.8 · 2026-09-16
 
