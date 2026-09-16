@@ -20,6 +20,7 @@ concurrency:
 
 jobs:
   summary:
+    if: ${{ vars.CLOUDFLARE_PRIMARY != 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
@@ -36,10 +37,10 @@ jobs:
 
     steps:
       - name: Check out monitor code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: "3.12"
           cache: pip
@@ -60,7 +61,7 @@ jobs:
           fi
 
       - name: Restore hourly monitor state
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: data/monitor.db*
           key: daily-summary-${{ github.run_id }}
@@ -72,7 +73,7 @@ jobs:
 
       - name: Save summary execution log
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: daily-summary-log-${{ github.run_id }}-${{ github.run_attempt }}
           path: data/daily-summary.jsonl*

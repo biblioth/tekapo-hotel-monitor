@@ -1,6 +1,6 @@
 {
   "name": "lakewatch-sensor",
-  "version": "1.1.8",
+  "version": "1.2.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -8,6 +8,7 @@
     "check": "XDG_CONFIG_HOME=/tmp/lakewatch-xdg WRANGLER_LOG_PATH=/tmp/lakewatch-wrangler.log node node_modules/wrangler/bin/wrangler.js deploy --dry-run"
   },
   "devDependencies": {
+    "miniflare": "5.20260915.0-alpha",
     "wrangler": "4.132.0"
   }
 }

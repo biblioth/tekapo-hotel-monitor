@@ -5,7 +5,15 @@
     "engine": "preno",
     "booking_url": "https://bookdirect.prenohq.com/inst/#home?propertyId=262IjuXNAH9B7SD4LIUyNzU5NiI=&JDRN=Y",
     "room_names": ["Rangi", "Whenua", "Whetu"],
-    "aliases": ["Ranginui Bed & Breakfast"]
+    "aliases": ["Ranginui Bed & Breakfast"],
+    "check_in": "2027-02-05",
+    "check_out": "2027-02-06",
+    "adults": 2,
+    "sensor": {
+      "engine": "staah",
+      "property_id": "262IjuXNAH9B7SD4LIUyNzU5NiI=",
+      "api_key": "cPPq1uh0xD6BpfDFpGWEx9fxnDOUA3Y25RdigC0X"
+    }
   },
   {
     "key": "lakeview-tekapo",
@@ -13,7 +21,10 @@
     "engine": "lakeview_wix",
     "booking_url": "https://www.lakeviewtekapo.com/book-online",
     "room_names": ["Lakeview Tekapo Studio"],
-    "aliases": []
+    "aliases": [],
+    "check_in": "2027-02-05",
+    "check_out": "2027-02-06",
+    "adults": 2
   },
   {
     "key": "grand-suites",
@@ -21,7 +32,17 @@
     "engine": "ibex",
     "booking_url": "https://grandsuitestekapo.co.nz/book-now/",
     "room_names": ["Executive Studio", "Luxury Studio", "One Bedroom Suite", "Two Bedroom Suite"],
-    "aliases": ["Grand Suites Tekapo"]
+    "aliases": ["Grand Suites Tekapo"],
+    "check_in": "2027-02-05",
+    "check_out": "2027-02-06",
+    "adults": 2,
+    "sensor": {
+      "engine": "ibex",
+      "property_id": "12972",
+      "client": "grandtekapo",
+      "client_key": "grandtekapo653666a9080e6265",
+      "referrer": "grandsuitestekapo.co.nz"
+    }
   },
   {
     "key": "galaxy-boutique",
@@ -33,7 +54,10 @@
       "Two-Bedroom Lake View Suite Accessible (No Skylight)",
       "Two-Bedroom Lake View Suite with Bath (No Skylight)"
     ],
-    "aliases": []
+    "aliases": [],
+    "check_in": "2027-02-05",
+    "check_out": "2027-02-06",
+    "adults": 2
   },
   {
     "key": "peppers-bluewater",
@@ -48,7 +72,15 @@
       "2 Bedroom Mountain View Villa", "2 Bedroom Lake View Villa",
       "3 Bedroom Mountain View Villa", "3 Bedroom Lake View Villa"
     ],
-    "aliases": ["Peppers Bluewater Resort"]
+    "aliases": ["Peppers Bluewater Resort"],
+    "check_in": "2027-02-05",
+    "check_out": "2027-02-06",
+    "adults": 2,
+    "sensor": {
+      "engine": "accor",
+      "hotel_id": "B3Q7",
+      "api_key": "l7xx5b9f4a053aaf43d8bc05bcc266dd8532"
+    }
   },
   {
     "key": "hermitage-mt-cook",
@@ -61,7 +93,17 @@
       "Standard Mt Cook View King", "Standard Mt Cook View Queen",
       "Standard (No View)", "Standard Queen (No View)"
     ],
-    "aliases": ["Hermitage Mt Cook", "The Hermitage Hotel"]
+    "aliases": ["Hermitage Mt Cook", "The Hermitage Hotel"],
+    "check_in": "2027-02-05",
+    "check_out": "2027-02-06",
+    "adults": 2,
+    "sensor": {
+      "engine": "agilysys",
+      "tenant_id": "20104",
+      "property_id": "hermitage",
+      "context_id": "686b116fd8b56d477136cd1d",
+      "offer_code": "DYNRO"
+    }
   },
   {
     "key": "tasman-hahei-beach",
@@ -72,6 +114,10 @@
     "aliases": ["Hahei Beach Resort", "Hahei Tasman Holiday Park"],
     "check_in": "2027-02-12",
     "check_out": "2027-02-13",
-    "adults": 2
+    "adults": 2,
+    "sensor": {
+      "engine": "newbook",
+      "endpoint": "https://book.tasmanholidayparks.com/wp-content/themes/newbookcrs-child/newbook/hahei-beach/api.php?newbook_api_action=availability_chart_responsive"
+    }
   }
 ]

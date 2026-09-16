@@ -3,8 +3,10 @@ import assert from "node:assert/strict";
 
 import {
   buildPushPlusTitle,
+  configuredNotificationChannels,
   renderAlert,
   sendEventNotifications,
+  sendTextNotificationChannel,
 } from "../src/notifications.js";
 
 const event = {
@@ -84,4 +86,20 @@ test("delivers to Feishu and PushPlus without emitting a separate fault alert", 
   assert.equal(requests.length, 2);
   assert.equal(requests[0][1].content.text, renderAlert(event));
   assert.equal(requests[1][1].title, buildPushPlusTitle(event));
+});
+
+test("queues can deliver one channel without changing the other channel", async () => {
+  const requests = [];
+  const fetcher = async (url, options) => {
+    requests.push([url, JSON.parse(options.body)]);
+    return { ok: true, status: 200, async json() { return { code: 0 }; } };
+  };
+  const env = {
+    FEISHU_WEBHOOK_URL: "https://example.com/feishu",
+    PUSHPLUS_TOKEN: "token",
+  };
+  assert.deepEqual(configuredNotificationChannels(env), ["feishu", "pushplus"]);
+  await sendTextNotificationChannel(env, "日报正文", "日报标题", "feishu", fetcher);
+  assert.equal(requests.length, 1);
+  assert.equal(requests[0][1].content.text, "日报正文");
 });

@@ -16,6 +16,7 @@ concurrency:
 
 jobs:
   monitor:
+    if: ${{ vars.CLOUDFLARE_PRIMARY != 'true' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     env:
@@ -40,10 +41,10 @@ jobs:
 
     steps:
       - name: Check out monitor code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Restore previous availability state
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: data/monitor.db*
           key: monitor-state-v1-${{ github.run_id }}-${{ github.run_attempt }}
@@ -65,7 +66,7 @@ jobs:
 
       - name: Set up Python
         if: steps.gate.outputs.should_run == 'true'
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
           python-version: "3.12"
           cache: pip
@@ -114,14 +115,14 @@ jobs:
 
       - name: Save updated availability state
         if: steps.gate.outputs.should_run == 'true' && steps.monitor.outputs.executed == 'true'
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         with:
           path: data/monitor.db*
           key: monitor-state-v1-${{ github.run_id }}-${{ github.run_attempt }}
 
       - name: Save this hourly execution log
         if: always() && steps.gate.outputs.should_run == 'true' && steps.monitor.outputs.executed != 'false'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: monitor-log-${{ github.run_id }}-${{ github.run_attempt }}
           path: data/monitor.jsonl*

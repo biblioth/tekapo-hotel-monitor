@@ -7,15 +7,32 @@
     "enabled": true
   },
   "triggers": {
-    "crons": ["*/5 * * * *"]
+    "crons": ["*/5 * * * *", "7 16 * * *"]
   },
   "d1_databases": [
     {
       "binding": "DB",
       "database_name": "lakewatch",
-      "database_id": "REPLACE_AFTER_D1_CREATE"
+      "database_id": "210006b4-d1d5-4134-bbed-8b7c4a0867fd"
     }
   ],
+  "queues": {
+    "producers": [
+      {
+        "binding": "NOTIFICATION_QUEUE",
+        "queue": "lakewatch-notifications"
+      }
+    ],
+    "consumers": [
+      {
+        "queue": "lakewatch-notifications",
+        "max_batch_size": 10,
+        "max_batch_timeout": 5,
+        "max_retries": 5,
+        "dead_letter_queue": "lakewatch-notifications-dlq"
+      }
+    ]
+  },
   "vars": {
     "GITHUB_OWNER": "biblioth",
     "GITHUB_REPO": "tekapo-hotel-monitor",
