@@ -47,8 +47,12 @@ CREATE TABLE IF NOT EXISTS sensor_events (
     event_type TEXT NOT NULL,
     payload_json TEXT NOT NULL,
     requires_validation INTEGER NOT NULL DEFAULT 1,
+    validation_status TEXT NOT NULL DEFAULT 'pending',
+    validation_attempts INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL,
     validation_dispatched_at TEXT,
+    validation_completed_at TEXT,
+    validation_result_json TEXT,
     notified_at TEXT,
     notify_attempts INTEGER NOT NULL DEFAULT 0,
     last_error TEXT
@@ -56,3 +60,42 @@ CREATE TABLE IF NOT EXISTS sensor_events (
 
 CREATE INDEX IF NOT EXISTS idx_sensor_events_pending
     ON sensor_events(notified_at, id);
+CREATE INDEX IF NOT EXISTS idx_sensor_events_validation
+    ON sensor_events(validation_status, validation_dispatched_at, id);
+
+CREATE TABLE IF NOT EXISTS sensor_deliveries (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    event_id INTEGER NOT NULL,
+    channel TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending',
+    attempts INTEGER NOT NULL DEFAULT 0,
+    queue_enqueued_at TEXT,
+    delivered_at TEXT,
+    last_error TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    UNIQUE(event_id, channel),
+    FOREIGN KEY(event_id) REFERENCES sensor_events(id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_sensor_deliveries_pending
+    ON sensor_deliveries(status, queue_enqueued_at, id);
+
+CREATE TABLE IF NOT EXISTS sensor_summary_deliveries (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    summary_date TEXT NOT NULL,
+    channel TEXT NOT NULL,
+    message TEXT NOT NULL,
+    title TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending',
+    attempts INTEGER NOT NULL DEFAULT 0,
+    queue_enqueued_at TEXT,
+    delivered_at TEXT,
+    last_error TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    UNIQUE(summary_date, channel)
+);
+
+CREATE INDEX IF NOT EXISTS idx_sensor_summary_deliveries_pending
+    ON sensor_summary_deliveries(status, queue_enqueued_at, id);

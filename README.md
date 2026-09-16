@@ -9,7 +9,7 @@
 [![Hourly monitor](https://github.com/biblioth/tekapo-hotel-monitor/actions/workflows/hourly-monitor.yml/badge.svg)](https://github.com/biblioth/tekapo-hotel-monitor/actions/workflows/hourly-monitor.yml)
 [![Daily summary](https://github.com/biblioth/tekapo-hotel-monitor/actions/workflows/daily-summary.yml/badge.svg)](https://github.com/biblioth/tekapo-hotel-monitor/actions/workflows/daily-summary.yml)
 [![Python 3.12](https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white)](https://www.python.org/)
-[![Version](https://img.shields.io/badge/version-1.1.8-0A7B83)](#更新日志)
+[![Version](https://img.shields.io/badge/version-1.2.0-0A7B83)](#更新日志)
 [![Cost](https://img.shields.io/badge/运行成本-NZ%240-brightgreen)](#为什么是免费的)
 
 **安静监控 · 官网直查 · 飞书 / 微信双推送 · 每日简报**
@@ -122,6 +122,14 @@ flowchart LR
 - 每次 JSONL 日志会作为 GitHub Actions Artifact 保存 90 天。
 - SQLite 状态通过 Actions cache 传递到下一次执行。
 
+### Cloudflare 高频传感器（影子模式）
+
+`cloudflare/` 中包含每 5 分钟运行的 API 传感器、D1 状态机、定向
+Playwright 复核和 Queue 通知实现。提交配置默认保持 `SHADOW_MODE=true`，
+不会与当前 GitHub 主监控重复发通知。部署、对比、切换和回滚步骤见
+[`cloudflare/README.md`](cloudflare/README.md)。完成至少 7 天对比后，再通过
+仓库变量 `CLOUDFLARE_PRIMARY=true` 切换唯一主监控。
+
 ## 本地运行（可选）
 
 云端版本无需保持电脑开机。只有需要本地调试或自建部署时，才需要 Docker：
@@ -163,6 +171,14 @@ pytest
 - 房态和价格以最终预订页面为准；收到提醒后仍应尽快打开官网确认并下单。
 
 ## 更新日志
+
+### v1.2.0 · 2026-09-16
+
+- Cloudflare 高频传感器改为 D1 唯一状态源；候选房态在 Playwright 回写确认前不会覆盖已确认快照。
+- GitHub 浏览器复核改为按酒店执行，并通过带鉴权的 `/validation` 回调返回结果，不再为一次候选检查全部 7 家。
+- 通知改由 Cloudflare Queue 按飞书、PushPlus 两个渠道分别投递、记录和重试。
+- 新增 D1 日报、15 分钟陈旧检测、90 天历史清理，以及 `CLOUDFLARE_PRIMARY` 安全切换开关。
+- 酒店日期、住客数和传感器参数统一收口到 `hotels.json`；Cloudflare 默认继续以影子模式运行。
 
 ### v1.1.8 · 2026-09-16
 

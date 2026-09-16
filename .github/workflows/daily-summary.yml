@@ -20,6 +20,7 @@ concurrency:
 
 jobs:
   summary:
+    if: ${{ vars.CLOUDFLARE_PRIMARY != 'true' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:

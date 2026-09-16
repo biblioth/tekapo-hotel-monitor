@@ -4,10 +4,73 @@ on:
   repository_dispatch:
     types: [lakewatch-browser-check]
   workflow_dispatch:
+    inputs:
+      hotel_key:
+        description: Hotel key to validate
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: lakewatch-validation-${{ github.event.client_payload.hotel_key || inputs.hotel_key }}
+  cancel-in-progress: false
 
 jobs:
-  monitor:
-    uses: ./.github/workflows/monitor-core.yml
-    with:
-      trigger_kind: ${{ github.event_name }}
-    secrets: inherit
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      LAKEWATCH_HOTEL_KEY: ${{ github.event.client_payload.hotel_key || inputs.hotel_key }}
+      LAKEWATCH_EVENT_ID: ${{ github.event.client_payload.event_id }}
+      LAKEWATCH_IDEMPOTENCY_KEY: ${{ github.event.client_payload.idempotency_key }}
+      LAKEWATCH_CYCLE_ID: ${{ github.event.client_payload.cycle_id }}
+      LAKEWATCH_VALIDATION_REASON: ${{ github.event.client_payload.reason || 'github-manual' }}
+      CLOUDFLARE_VALIDATION_URL: ${{ secrets.CLOUDFLARE_VALIDATION_URL }}
+      CLOUDFLARE_VALIDATION_TOKEN: ${{ secrets.CLOUDFLARE_VALIDATION_TOKEN }}
+      CHECK_IN: "2027-02-05"
+      CHECK_OUT: "2027-02-06"
+      ADULTS: "2"
+      CURRENCY: NZD
+      CHECK_TIMEZONE: Pacific/Auckland
+      BROWSER_TIMEOUT_SECONDS: "75"
+      BROWSER_RETRIES: "3"
+      CHROMIUM_EXECUTABLE_PATH: /usr/bin/google-chrome
+      HOTELS_FILE: hotels.json
+
+    steps:
+      - name: Check out monitor code
+        uses: actions/checkout@v4
+
+      - name: Validate callback configuration
+        shell: bash
+        run: |
+          if [[ -z "$LAKEWATCH_HOTEL_KEY" ]]; then
+            echo '::error::A hotel_key is required.'
+            exit 1
+          fi
+          if [[ -z "$CLOUDFLARE_VALIDATION_URL" || -z "$CLOUDFLARE_VALIDATION_TOKEN" ]]; then
+            echo '::error::CLOUDFLARE_VALIDATION_URL and CLOUDFLARE_VALIDATION_TOKEN must be configured.'
+            exit 1
+          fi
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install monitor
+        run: pip install -e .
+
+      - name: Verify preinstalled Chrome
+        shell: bash
+        timeout-minutes: 2
+        run: |
+          test -x "$CHROMIUM_EXECUTABLE_PATH"
+          "$CHROMIUM_EXECUTABLE_PATH" --version
+          python -c 'import os; from playwright.sync_api import sync_playwright; p = sync_playwright().start(); b = p.chromium.launch(executable_path=os.environ["CHROMIUM_EXECUTABLE_PATH"], headless=True); b.close(); p.stop()'
+
+      - name: Validate one hotel and return the result
+        run: python -m app.browser_validation

@@ -1,64 +1,44 @@
-export const HOTELS = [
-  {
-    key: "ranginui",
-    name: "Ranginui at Lake Tekapo",
-    engine: "staah",
-    checkIn: "2027-02-05",
-    checkOut: "2027-02-06",
-    adults: 2,
-    bookingUrl:
-      "https://bookdirect.prenohq.com/inst/#home?propertyId=262IjuXNAH9B7SD4LIUyNzU5NiI=&JDRN=Y",
-    propertyId: "262IjuXNAH9B7SD4LIUyNzU5NiI=",
-    apiKey: "cPPq1uh0xD6BpfDFpGWEx9fxnDOUA3Y25RdigC0X",
-  },
-  {
-    key: "grand-suites",
-    name: "Grand Suites Lake Tekapo",
-    engine: "ibex",
-    checkIn: "2027-02-05",
-    checkOut: "2027-02-06",
-    adults: 2,
-    bookingUrl: "https://grandsuitestekapo.co.nz/book-now/",
-    propertyId: "12972",
-    client: "grandtekapo",
-    clientKey: "grandtekapo653666a9080e6265",
-    referrer: "grandsuitestekapo.co.nz",
-  },
-  {
-    key: "peppers-bluewater",
-    name: "Peppers Bluewater Resort Lake Tekapo",
-    engine: "accor",
-    checkIn: "2027-02-05",
-    checkOut: "2027-02-06",
-    adults: 2,
-    bookingUrl: "https://all.accor.com/booking/en/accor/hotel/B3Q7",
-    hotelId: "B3Q7",
-    apiKey: "l7xx5b9f4a053aaf43d8bc05bcc266dd8532",
-  },
-  {
-    key: "hermitage-mt-cook",
-    name: "The Hermitage Hotel Mt Cook",
-    engine: "agilysys",
-    checkIn: "2027-02-05",
-    checkOut: "2027-02-06",
-    adults: 2,
-    bookingUrl: "https://book.hermitage.co.nz/onecart/wbe/offers/20104/hermitage",
-    tenantId: "20104",
-    propertyId: "hermitage",
-    contextId: "686b116fd8b56d477136cd1d",
-    offerCode: "DYNRO",
-  },
-  {
-    key: "tasman-hahei-beach",
-    name: "Tasman Holiday Parks Hahei Beach",
-    engine: "newbook",
-    checkIn: "2027-02-12",
-    checkOut: "2027-02-13",
-    adults: 2,
-    bookingUrl: "https://book.tasmanholidayparks.com/hahei-beach/",
-    endpoint:
-      "https://book.tasmanholidayparks.com/wp-content/themes/newbookcrs-child/newbook/hahei-beach/api.php?newbook_api_action=availability_chart_responsive",
-  },
-];
+import configuredHotels from "../../hotels.json" with { type: "json" };
 
-export const BROWSER_ONLY_HOTELS = ["lakeview-tekapo", "galaxy-boutique"];
+function sensorHotel(hotel) {
+  const sensor = hotel.sensor;
+  return {
+    key: hotel.key,
+    name: hotel.name,
+    engine: sensor.engine,
+    checkIn: hotel.check_in,
+    checkOut: hotel.check_out,
+    adults: hotel.adults,
+    bookingUrl: hotel.booking_url,
+    propertyId: sensor.property_id,
+    apiKey: sensor.api_key,
+    client: sensor.client,
+    clientKey: sensor.client_key,
+    referrer: sensor.referrer,
+    hotelId: sensor.hotel_id,
+    tenantId: sensor.tenant_id,
+    contextId: sensor.context_id,
+    offerCode: sensor.offer_code,
+    endpoint: sensor.endpoint,
+  };
+}
+
+export const HOTELS = configuredHotels.filter((hotel) => hotel.sensor).map(sensorHotel);
+
+export const BROWSER_ONLY_HOTELS = configuredHotels
+  .filter((hotel) => !hotel.sensor)
+  .map((hotel) => hotel.key);
+
+export function hotelByKey(key) {
+  const hotel = configuredHotels.find((item) => item.key === key);
+  if (!hotel) return null;
+  return {
+    key: hotel.key,
+    name: hotel.name,
+    engine: hotel.sensor?.engine || hotel.engine,
+    checkIn: hotel.check_in,
+    checkOut: hotel.check_out,
+    adults: hotel.adults,
+    bookingUrl: hotel.booking_url,
+  };
+}

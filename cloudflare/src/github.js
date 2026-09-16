@@ -1,5 +1,8 @@
 export async function dispatchBrowserValidation(env, payload, fetcher = fetch) {
-  if (!env.GITHUB_TOKEN || env.SHADOW_MODE === "true") return false;
+  if (env.SHADOW_MODE === "true") return false;
+  if (!env.GITHUB_TOKEN) {
+    throw new Error("GITHUB_TOKEN is not configured");
+  }
   const owner = env.GITHUB_OWNER || "biblioth";
   const repo = env.GITHUB_REPO || "tekapo-hotel-monitor";
   const response = await fetcher(

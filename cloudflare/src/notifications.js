@@ -110,25 +110,84 @@ async function sendPushPlus(env, event, message, fetcher) {
   if (![200, "200"].includes(result.code)) throw new Error(`PushPlus rejected the message: ${result.code}`);
 }
 
-export async function sendEventNotifications(env, event, fetcher = fetch) {
-  const message = renderAlert(event);
-  const deliveries = [];
-  if (env.FEISHU_WEBHOOK_URL) {
-    deliveries.push(["feishu", sendFeishu(env, message, fetcher)]);
+async function sendPushPlusText(env, message, title, fetcher) {
+  const payload = {
+    token: env.PUSHPLUS_TOKEN,
+    title: String(title || "LakeWatch").slice(0, 80),
+    content: message,
+    template: "txt",
+    channel: "wechat",
+  };
+  if (env.PUSHPLUS_TOPIC) payload.topic = env.PUSHPLUS_TOPIC;
+  const response = await fetcher("https://www.pushplus.plus/send", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) throw new Error(`PushPlus returned HTTP ${response.status}`);
+  const result = await response.json();
+  if (![200, "200"].includes(result.code)) {
+    throw new Error(`PushPlus rejected the message: ${result.code}`);
   }
-  if (env.PUSHPLUS_TOKEN) {
-    deliveries.push(["pushplus", sendPushPlus(env, event, message, fetcher)]);
-  }
-  if (!deliveries.length) return { delivered: false, failures: [] };
+}
 
-  const results = await Promise.allSettled(deliveries.map(([, promise]) => promise));
+export function configuredNotificationChannels(env) {
+  return [
+    env.FEISHU_WEBHOOK_URL ? "feishu" : null,
+    env.PUSHPLUS_TOKEN ? "pushplus" : null,
+  ].filter(Boolean);
+}
+
+export async function sendNotificationChannel(env, event, channel, fetcher = fetch) {
+  const message = renderAlert(event);
+  if (channel === "feishu") {
+    if (!env.FEISHU_WEBHOOK_URL) throw new Error("Feishu is not configured");
+    await sendFeishu(env, message, fetcher);
+    return;
+  }
+  if (channel === "pushplus") {
+    if (!env.PUSHPLUS_TOKEN) throw new Error("PushPlus is not configured");
+    await sendPushPlus(env, event, message, fetcher);
+    return;
+  }
+  throw new Error(`Unsupported notification channel: ${channel}`);
+}
+
+export async function sendTextNotificationChannel(
+  env,
+  message,
+  title,
+  channel,
+  fetcher = fetch,
+) {
+  if (channel === "feishu") {
+    if (!env.FEISHU_WEBHOOK_URL) throw new Error("Feishu is not configured");
+    await sendFeishu(env, message, fetcher);
+    return;
+  }
+  if (channel === "pushplus") {
+    if (!env.PUSHPLUS_TOKEN) throw new Error("PushPlus is not configured");
+    await sendPushPlusText(env, message, title, fetcher);
+    return;
+  }
+  throw new Error(`Unsupported notification channel: ${channel}`);
+}
+
+// Retained for local tests and callers outside the Queue consumer. Production
+// delivery uses sendNotificationChannel so each channel has independent state.
+export async function sendEventNotifications(env, event, fetcher = fetch) {
+  const channels = configuredNotificationChannels(env);
+  if (!channels.length) return { delivered: false, failures: [] };
+  const results = await Promise.allSettled(
+    channels.map((channel) => sendNotificationChannel(env, event, channel, fetcher)),
+  );
   const failures = results.flatMap((result, index) =>
     result.status === "rejected"
-      ? [`${deliveries[index][0]}: ${result.reason instanceof Error ? result.reason.message : result.reason}`]
+      ? [`${channels[index]}: ${result.reason instanceof Error ? result.reason.message : result.reason}`]
       : [],
   );
-  const delivered = failures.length < deliveries.length;
-  if (!delivered) throw new Error(`All notification channels failed: ${failures.join("; ")}`);
-  for (const failure of failures) console.error("Notification channel failed", failure);
-  return { delivered, failures };
+  if (failures.length === channels.length) {
+    throw new Error(`All notification channels failed: ${failures.join("; ")}`);
+  }
+  return { delivered: true, failures };
 }
