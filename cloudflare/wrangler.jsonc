@@ -13,7 +13,7 @@
     {
       "binding": "DB",
       "database_name": "lakewatch",
-      "database_id": "REPLACE_AFTER_D1_CREATE"
+      "database_id": "210006b4-d1d5-4134-bbed-8b7c4a0867fd"
     }
   ],
   "queues": {
