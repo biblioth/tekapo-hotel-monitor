@@ -123,13 +123,13 @@ flowchart LR
 - 每次 JSONL 日志会作为 GitHub Actions Artifact 保存 90 天。
 - SQLite 状态通过 Actions cache 传递到下一次执行。
 
-### Cloudflare 高频传感器（影子模式）
+### Cloudflare 高频主监控
 
 `cloudflare/` 中包含每 5 分钟运行的 API 传感器、D1 状态机、定向
-Playwright 复核和 Queue 通知实现。提交配置默认保持 `SHADOW_MODE=true`，
-不会与当前 GitHub 主监控重复发通知。部署、对比、切换和回滚步骤见
-[`cloudflare/README.md`](cloudflare/README.md)。完成至少 7 天对比后，再通过
-仓库变量 `CLOUDFLARE_PRIMARY=true` 切换唯一主监控。
+Playwright 复核和 Queue 通知实现。生产配置为 `SHADOW_MODE=false`，并通过
+仓库变量 `CLOUDFLARE_PRIMARY=true` 将 Cloudflare 设为唯一主监控，不会与
+旧 GitHub 定时监控重复通知。部署、验证与回滚步骤见
+[`cloudflare/README.md`](cloudflare/README.md)。
 
 ## 本地运行（可选）
 
