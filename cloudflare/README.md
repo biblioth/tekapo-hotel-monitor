@@ -103,10 +103,9 @@ npx wrangler d1 execute lakewatch --remote --file=./migrate-v2.sql
 
 ## Shadow and cutover
 
-`SHADOW_MODE` is committed as `true`. In shadow mode the Worker records real
-API observations but does not dispatch browsers, enqueue alerts, or send the D1
-daily summary. Keep the existing GitHub hourly monitor active while comparing
-results for at least seven days.
+Production is committed with `SHADOW_MODE=false`. To run another comparison,
+temporarily set it to `true`; shadow mode records real API observations but
+does not dispatch browsers, enqueue alerts, or send the D1 daily summary.
 
 Cut over only after the comparison is clean:
 
