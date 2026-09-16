@@ -91,13 +91,31 @@ async function sendFeishu(env, message, fetcher) {
   if (![0, "0", null].includes(code)) throw new Error(`Feishu rejected the message: ${code}`);
 }
 
-async function sendPushPlus(env, event, message, fetcher) {
+function pushPlusChannels(env) {
+  const configured = String(env.PUSHPLUS_CHANNELS || "wechat")
+    .split(",")
+    .map((channel) => channel.trim().toLowerCase())
+    .filter(Boolean);
+  return [...new Set(configured)].filter((channel) => ["wechat", "clawbot"].includes(channel));
+}
+
+function pushPlusDeliveryChannel(channel) {
+  return channel === "wechat" ? "pushplus" : `pushplus:${channel}`;
+}
+
+function pushPlusApiChannel(deliveryChannel) {
+  if (deliveryChannel === "pushplus") return "wechat";
+  if (deliveryChannel.startsWith("pushplus:")) return deliveryChannel.slice("pushplus:".length);
+  return null;
+}
+
+async function sendPushPlus(env, event, message, apiChannel, fetcher) {
   const payload = {
     token: env.PUSHPLUS_TOKEN,
     title: buildPushPlusTitle(event),
     content: message,
     template: "txt",
-    channel: "wechat",
+    channel: apiChannel,
   };
   if (env.PUSHPLUS_TOPIC) payload.topic = env.PUSHPLUS_TOPIC;
   const response = await fetcher("https://www.pushplus.plus/send", {
@@ -110,13 +128,13 @@ async function sendPushPlus(env, event, message, fetcher) {
   if (![200, "200"].includes(result.code)) throw new Error(`PushPlus rejected the message: ${result.code}`);
 }
 
-async function sendPushPlusText(env, message, title, fetcher) {
+async function sendPushPlusText(env, message, title, apiChannel, fetcher) {
   const payload = {
     token: env.PUSHPLUS_TOKEN,
     title: String(title || "LakeWatch").slice(0, 80),
     content: message,
     template: "txt",
-    channel: "wechat",
+    channel: apiChannel,
   };
   if (env.PUSHPLUS_TOPIC) payload.topic = env.PUSHPLUS_TOPIC;
   const response = await fetcher("https://www.pushplus.plus/send", {
@@ -134,7 +152,7 @@ async function sendPushPlusText(env, message, title, fetcher) {
 export function configuredNotificationChannels(env) {
   return [
     env.FEISHU_WEBHOOK_URL ? "feishu" : null,
-    env.PUSHPLUS_TOKEN ? "pushplus" : null,
+    ...(env.PUSHPLUS_TOKEN ? pushPlusChannels(env).map(pushPlusDeliveryChannel) : []),
   ].filter(Boolean);
 }
 
@@ -145,9 +163,10 @@ export async function sendNotificationChannel(env, event, channel, fetcher = fet
     await sendFeishu(env, message, fetcher);
     return;
   }
-  if (channel === "pushplus") {
+  const pushPlusChannel = pushPlusApiChannel(channel);
+  if (pushPlusChannel) {
     if (!env.PUSHPLUS_TOKEN) throw new Error("PushPlus is not configured");
-    await sendPushPlus(env, event, message, fetcher);
+    await sendPushPlus(env, event, message, pushPlusChannel, fetcher);
     return;
   }
   throw new Error(`Unsupported notification channel: ${channel}`);
@@ -165,9 +184,10 @@ export async function sendTextNotificationChannel(
     await sendFeishu(env, message, fetcher);
     return;
   }
-  if (channel === "pushplus") {
+  const pushPlusChannel = pushPlusApiChannel(channel);
+  if (pushPlusChannel) {
     if (!env.PUSHPLUS_TOKEN) throw new Error("PushPlus is not configured");
-    await sendPushPlusText(env, message, title, fetcher);
+    await sendPushPlusText(env, message, title, pushPlusChannel, fetcher);
     return;
   }
   throw new Error(`Unsupported notification channel: ${channel}`);

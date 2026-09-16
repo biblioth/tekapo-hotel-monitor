@@ -23,6 +23,7 @@ class Settings:
     feishu_webhook_secret: str | None
     pushplus_token: str | None
     pushplus_topic: str | None
+    pushplus_channels: tuple[str, ...]
     check_in: date
     check_out: date
     adults: int
@@ -46,6 +47,11 @@ class Settings:
             feishu_webhook_secret=os.getenv("FEISHU_WEBHOOK_SECRET") or None,
             pushplus_token=os.getenv("PUSHPLUS_TOKEN") or None,
             pushplus_topic=os.getenv("PUSHPLUS_TOPIC") or None,
+            pushplus_channels=tuple(
+                channel.strip().lower()
+                for channel in os.getenv("PUSHPLUS_CHANNELS", "wechat").split(",")
+                if channel.strip()
+            ),
             check_in=date.fromisoformat(os.getenv("CHECK_IN", "2027-02-05")),
             check_out=date.fromisoformat(os.getenv("CHECK_OUT", "2027-02-06")),
             adults=int(os.getenv("ADULTS", "2")),
@@ -76,6 +82,12 @@ class Settings:
             raise ValueError("BROWSER_TIMEOUT_SECONDS must be at least 15")
         if self.browser_retries < 1:
             raise ValueError("BROWSER_RETRIES must be at least 1")
+        unsupported_pushplus_channels = set(self.pushplus_channels) - {"wechat", "clawbot"}
+        if unsupported_pushplus_channels:
+            raise ValueError(
+                "PUSHPLUS_CHANNELS only supports wechat and clawbot; got "
+                + ", ".join(sorted(unsupported_pushplus_channels))
+            )
         ZoneInfo(self.timezone)
 
     def load_hotels(self) -> tuple[Hotel, ...]:

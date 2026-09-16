@@ -36,6 +36,7 @@
   "vars": {
     "GITHUB_OWNER": "biblioth",
     "GITHUB_REPO": "tekapo-hotel-monitor",
+    "PUSHPLUS_CHANNELS": "wechat,clawbot",
     "SHADOW_MODE": "true"
   }
 }

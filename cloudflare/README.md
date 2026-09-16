@@ -81,6 +81,9 @@ npx wrangler dev --test-scheduled
    npx wrangler secret put PUSHPLUS_TOPIC
    ```
 
+   PushPlus 渠道由 `wrangler.jsonc` 的 `PUSHPLUS_CHANNELS` 控制。`wechat,clawbot`
+   会分别投递到微信公众号和微信 ClawBot，并各自独立重试。
+
 5. Deploy with `npx wrangler deploy`.
 6. In GitHub Actions secrets, configure:
    - `CLOUDFLARE_VALIDATION_URL`, for example

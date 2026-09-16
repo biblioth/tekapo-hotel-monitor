@@ -28,6 +28,7 @@ jobs:
       FEISHU_WEBHOOK_SECRET: ${{ secrets.FEISHU_WEBHOOK_SECRET }}
       PUSHPLUS_TOKEN: ${{ secrets.PUSHPLUS_TOKEN }}
       PUSHPLUS_TOPIC: ${{ secrets.PUSHPLUS_TOPIC }}
+      PUSHPLUS_CHANNELS: ${{ vars.PUSHPLUS_CHANNELS || 'wechat' }}
       DATABASE_PATH: data/monitor.db
       LOG_FILE: data/daily-summary.jsonl
       HOTELS_FILE: hotels.json
