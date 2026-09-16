@@ -49,75 +49,80 @@ def build_summary(
         return "\n".join(
             [
                 title,
-                "",
-                "结论：🚨 昨日监控没有运行",
-                f"执行情况：自动检查 0 次，计划约 {EXPECTED_DAILY_CHECKS} 次",
-                "房态结果：没有足够数据判断是否出现新放房",
-                "你需要做什么：订房方面暂不操作；需要尽快检查云端定时任务",
+                "🚨 昨日监控未运行",
+                f"自动检查 0/{EXPECTED_DAILY_CHECKS} 次｜无法判断房态",
             ]
         )
 
-    successful = sum(run.get("status") == "success" for run in runs)
     errors = sum(int(run.get("error_count") or 0) for run in runs)
-    hotel_errors, hotel_error_details, other_errors = detailed_error_breakdown(runs, snapshots)
+    _, hotel_error_details, other_errors = detailed_error_breakdown(runs, snapshots)
     changes = sum(int(run.get("change_count") or 0) for run in runs)
     notifications = sum(int(run.get("notification_count") or 0) for run in runs)
-    available = sum(snapshot.get("status") == "available" for snapshot in snapshots)
-    unavailable = sum(snapshot.get("status") == "unavailable" for snapshot in snapshots)
     automatic, manual, _ = execution_breakdown(runs)
     missing = max(0, EXPECTED_DAILY_CHECKS - automatic)
     coverage_low = automatic < MINIMUM_HEALTHY_CHECKS
 
     if changes or notifications:
-        conclusion = "🔔 发现房态变化，提醒已经发送"
+        conclusion = f"🔔 发现 {changes} 次房态变化｜已发送 {notifications} 条提醒"
     elif coverage_low and errors:
-        conclusion = "⚠️ 监控次数不足，且部分官网读取失败"
+        conclusion = "⚠️ 监控执行不足且有异常｜未发现新房"
     elif coverage_low:
-        conclusion = "⚠️ 监控次数不足；已完成的检查未发现新放房"
+        conclusion = "⚠️ 监控执行不足｜未发现新房"
     elif errors:
-        conclusion = "⚠️ 部分官网读取失败；其余检查未发现新放房"
+        conclusion = "⚠️ 有短暂异常｜未发现新房"
     else:
-        conclusion = "✅ 运行正常，没有发现新放房"
+        conclusion = "✅ 监控正常｜未发现新房"
 
-    execution = f"执行情况：自动检查 {automatic} 次，计划约 {EXPECTED_DAILY_CHECKS} 次"
+    execution = f"自动检查 {automatic}/{EXPECTED_DAILY_CHECKS} 次"
     if missing:
         execution += f"，少 {missing} 次"
     elif automatic > EXPECTED_DAILY_CHECKS:
         execution += f"，多 {automatic - EXPECTED_DAILY_CHECKS} 次"
-    else:
-        execution += "，达到计划"
     if manual:
-        execution += f"；另有手动检查 {manual} 次"
+        execution += f"｜另有手动 {manual} 次"
 
-    incomplete = len(runs) - successful
-    if incomplete:
-        quality = f"检查质量：{successful} 次完整成功，{incomplete} 次未完整成功"
-    else:
-        quality = f"检查质量：全部 {successful} 次均完整成功"
-
-    lines = [title, "", f"结论：{conclusion}", execution, quality]
+    lines = [title, conclusion, execution]
     if hotel_error_details:
-        lines.append("官网读取失败：")
-        lines.extend(f"- {name}：{count} 次" for name, count in hotel_error_details)
+        recovery = hotel_recovery_status(runs, snapshots)
+        details = "；".join(
+            f"{name}：失败 {count} 次（{'已恢复' if recovery.get(name) else '截至日报仍未恢复'}）"
+            for name, count in hotel_error_details
+        )
+        lines.append(f"官网异常：{details}")
     if other_errors:
-        lines.append(f"- 通知发送或其他问题：{other_errors} 次")
-    lines.extend(
-        [
-            f"房态结果：变化 {changes} 次；已发送提醒 {notifications} 条",
-            f"最近有效记录：有房 {available} 家；无房 {unavailable} 家",
-        ]
-    )
+        lines.append(f"通知发送或其他问题：{other_errors} 次")
     if notifications:
-        lines.append("你需要做什么：请查看此前的放房提醒，并尽快打开官网确认")
-    elif coverage_low and errors:
-        lines.append("你需要做什么：订房方面无需操作；云端调度次数不足，失败酒店会自动重试")
-    elif coverage_low:
-        lines.append("你需要做什么：订房方面无需操作；云端调度次数不足，系统会继续尝试运行")
+        lines.append("请查看放房提醒并打开官网确认")
     elif errors:
-        lines.append("你需要做什么：订房方面无需操作；读取失败的酒店会在下一轮自动重试")
-    else:
-        lines.append("你需要做什么：无需操作，LakeWatch 会继续监控")
+        lines.append("系统将继续自动重试｜无需手动处理")
+    elif coverage_low:
+        lines.append("系统将继续自动监控｜无需手动处理")
     return "\n".join(lines)
+
+
+def hotel_recovery_status(
+    runs: list[dict[str, Any]], snapshots: list[dict[str, Any]]
+) -> dict[str, bool]:
+    """Report whether each failed hotel had a later successful observation."""
+    ordered = sorted(
+        runs,
+        key=lambda run: str(run.get("started_at") or ""),
+        reverse=True,
+    )
+    latest_status: dict[str, str] = {}
+    names_by_key = {
+        str(snapshot["hotel_key"]): str(snapshot["hotel_name"])
+        for snapshot in snapshots
+        if snapshot.get("hotel_key") and snapshot.get("hotel_name")
+    }
+    for run in ordered:
+        for hotel in (run.get("summary") or {}).get("hotels") or []:
+            key = str(hotel.get("key") or "unknown")
+            latest_status.setdefault(key, str(hotel.get("status") or "unknown"))
+    return {
+        HOTEL_SHORT_NAMES.get(names_by_key.get(key, key), names_by_key.get(key, key)): status != "error"
+        for key, status in latest_status.items()
+    }
 
 
 def detailed_error_breakdown(

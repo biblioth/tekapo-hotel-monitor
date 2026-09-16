@@ -48,21 +48,31 @@ class MonitorService:
             self.database.start_run(run_id, trigger, started.isoformat())
             logger.info("Availability check started", extra={"run_id": run_id})
 
-            results = await asyncio.gather(
-                *(self.provider.check(hotel) for hotel in self.hotels),
-                return_exceptions=True,
-            )
+            tasks = [
+                asyncio.create_task(self._check_hotel(hotel), name=f"hotel:{hotel.key}")
+                for hotel in self.hotels
+            ]
             checked = available = changes = errors = 0
+            notifications = notify_errors = 0
             hotel_summary: list[dict[str, Any]] = []
-            for hotel, item in zip(self.hotels, results, strict=True):
-                if isinstance(item, BaseException):
-                    result = HotelResult(hotel=hotel, status="error", message=str(item))
-                else:
-                    result = item
+
+            # Retry messages left in the durable outbox by an earlier run while
+            # the hotel checks are already progressing in the background.
+            retried, retry_errors = await self._flush_outbox()
+            notifications += retried
+            notify_errors += retry_errors
+
+            for completed in asyncio.as_completed(tasks):
+                hotel, result, check_duration_ms = await completed
                 checked += 1
                 available += result.status == "available"
                 errors += result.status == "error"
-                changes += self.database.record_result(run_id, result)
+                event_id = self.database.record_result(run_id, result)
+                if event_id is not None:
+                    changes += 1
+                    sent, send_errors = await self._flush_outbox(event_ids=(event_id,))
+                    notifications += sent
+                    notify_errors += send_errors
                 hotel_summary.append(
                     {
                         "key": hotel.key,
@@ -70,16 +80,22 @@ class MonitorService:
                         "offers": len(result.offers),
                         "lowest_price": result.lowest_price,
                         "message": result.message,
+                        "duration_ms": check_duration_ms,
                     }
                 )
                 logger.info(
                     "Hotel checked: status=%s offers=%d",
                     result.status,
                     len(result.offers),
-                    extra={"run_id": run_id, "hotel_key": hotel.key},
+                    extra={
+                        "run_id": run_id,
+                        "hotel_key": hotel.key,
+                        "duration_ms": check_duration_ms,
+                    },
                 )
 
-            notifications, notify_errors = await self._flush_outbox()
+            configured_order = {hotel.key: index for index, hotel in enumerate(self.hotels)}
+            hotel_summary.sort(key=lambda item: configured_order[item["key"]])
             duration_ms = int((time.monotonic() - start_clock) * 1000)
             status = "success" if errors == 0 and notify_errors == 0 else "partial"
             self.database.finish_run(
@@ -113,9 +129,22 @@ class MonitorService:
             )
             return summary
 
-    async def _flush_outbox(self) -> tuple[int, int]:
+    async def _check_hotel(self, hotel: Hotel) -> tuple[Hotel, HotelResult, int]:
+        started = time.monotonic()
+        try:
+            result = await self.provider.check(hotel)
+        except BaseException as exc:
+            if isinstance(exc, asyncio.CancelledError):
+                raise
+            result = HotelResult(hotel=hotel, status="error", message=str(exc))
+        duration_ms = int((time.monotonic() - started) * 1000)
+        return hotel, result, duration_ms
+
+    async def _flush_outbox(
+        self, *, event_ids: tuple[int, ...] | None = None
+    ) -> tuple[int, int]:
         sent = errors = 0
-        for event in self.database.pending_events():
+        for event in self.database.pending_events(event_ids=event_ids):
             try:
                 await self.notifier.send(event)
                 self.database.mark_event_sent(event["id"])
@@ -133,4 +162,3 @@ class MonitorService:
                     extra={"run_id": event["run_id"], "hotel_key": event["hotel_key"], "event_type": event["event_type"]},
                 )
         return sent, errors
-

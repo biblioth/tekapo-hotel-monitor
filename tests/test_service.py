@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from datetime import date
 from pathlib import Path
 
@@ -25,6 +26,30 @@ class RecordingNotifier:
 
     async def send(self, event: dict) -> None:
         self.events.append(event)
+
+
+class CoordinatedProvider:
+    def __init__(self, fast: Hotel, slow: Hotel, room: Offer):
+        self.fast = fast
+        self.slow = slow
+        self.room = room
+        self.release_slow = asyncio.Event()
+
+    async def check(self, hotel: Hotel) -> HotelResult:
+        if hotel == self.slow:
+            await self.release_slow.wait()
+            return HotelResult(hotel, "unavailable")
+        return HotelResult(hotel, "available", (self.room,))
+
+
+class SignallingNotifier(RecordingNotifier):
+    def __init__(self):
+        super().__init__()
+        self.sent = asyncio.Event()
+
+    async def send(self, event: dict) -> None:
+        await super().send(event)
+        self.sent.set()
 
 
 def make_settings(tmp_path: Path) -> Settings:
@@ -95,3 +120,32 @@ async def test_errors_do_not_overwrite_last_good_snapshot(tmp_path: Path) -> Non
     assert failed["status"] == "partial"
     assert recovered["changes"] == 1
     assert notifier.events[0]["event_type"] == "availability_returned"
+
+
+@pytest.mark.asyncio
+async def test_fast_hotel_alert_is_sent_before_slow_hotel_finishes(tmp_path: Path) -> None:
+    fast = Hotel("fast", "Fast Hotel", "accor", "https://example.com/fast")
+    slow = Hotel("slow", "Slow Hotel", "newbook", "https://example.com/slow")
+    room = Offer("Official", "Lake View Room", fast.booking_url, "NZ$ 400", 400, official=True)
+    database = Database(tmp_path / "monitor.db")
+
+    # Establish a definite sold-out baseline so the next available result is actionable.
+    baseline = SequenceProvider([HotelResult(fast, "unavailable"), HotelResult(slow, "unavailable")])
+    service = MonitorService(
+        make_settings(tmp_path), (fast, slow), baseline, RecordingNotifier(), database
+    )
+    await service.run_once()
+
+    provider = CoordinatedProvider(fast, slow, room)
+    notifier = SignallingNotifier()
+    service = MonitorService(make_settings(tmp_path), (fast, slow), provider, notifier, database)
+    run = asyncio.create_task(service.run_once())
+
+    await asyncio.wait_for(notifier.sent.wait(), timeout=1)
+    assert not run.done()
+    assert notifier.events[0]["hotel_key"] == "fast"
+
+    provider.release_slow.set()
+    summary = await asyncio.wait_for(run, timeout=1)
+    assert summary["changes"] == 1
+    assert summary["notifications"] == 1

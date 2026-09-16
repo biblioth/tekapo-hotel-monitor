@@ -93,9 +93,7 @@ async def test_pushplus_event_title_contains_actionable_summary() -> None:
 
     await notifier.send(event)
 
-    assert client.requests[0][1]["title"] == (
-        "🔔 Peppers Bluewater｜Deluxe Lake View Room｜NZ$420｜可免费取消｜立即订"
-    )
+    assert client.requests[0][1]["title"] == "🔔 Peppers Bluewater｜Deluxe Lake View Room｜NZ$420"
 
 
 @pytest.mark.asyncio
@@ -114,8 +112,7 @@ async def test_pushplus_daily_summary_is_visible_in_title() -> None:
     await notifier.send_text(message)
 
     assert client.requests[0][1]["title"] == (
-        "📊 LakeWatch 日报｜2026-08-17｜结论：✅ 运行正常，没有发现新放房｜"
-        "执行情况：自动检查 24 次，计划约 24 次，达到计划"
+        "📊 LakeWatch 日报｜2026-08-17｜结论：✅ 运行正常，没有发现新放房"
     )
 
 
@@ -160,8 +157,36 @@ def test_alert_uses_hotel_specific_dates() -> None:
 
     message = render_alert(settings, event)
 
-    assert "入住：2027-02-12 → 2027-02-13" in message
-    assert message.startswith("🔔 LakeWatch 酒店捡漏")
+    assert message == (
+        "🔔 Hahei Beach 重新有房\n"
+        "2027/2/12–2027/2/13 · Sea View Villas\n"
+        "$423.00 · 可免费取消\n"
+        "立即预订：https://example.com/book"
+    )
+
+
+def test_alert_omits_unknown_price_and_cancellation() -> None:
+    settings = SimpleNamespace(check_in=date(2027, 2, 5), check_out=date(2027, 2, 6))
+    event = {
+        "event_type": "new_room",
+        "payload": {
+            "hotel_name": "Lakeview Tekapo",
+            "offers": [
+                {
+                    "room_name": "Lake View Studio",
+                    "price_label": None,
+                    "free_cancellation": False,
+                    "link": "https://example.com/book",
+                }
+            ],
+        },
+    }
+
+    assert render_alert(settings, event) == (
+        "🔔 Lakeview 新增房型\n"
+        "2027/2/5–2027/2/6 · Lake View Studio\n"
+        "立即预订：https://example.com/book"
+    )
 
 
 @pytest.mark.asyncio

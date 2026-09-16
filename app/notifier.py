@@ -6,6 +6,7 @@ import hashlib
 import hmac
 import logging
 import time
+from datetime import date
 from typing import Any
 
 import httpx
@@ -26,16 +27,22 @@ HOTEL_SHORT_NAMES = {
 
 
 def build_pushplus_title(event: dict[str, Any]) -> str:
-    """Put the decision-making details in the visible WeChat notification title."""
+    """Keep the useful part visible in WeChat's collapsed notification card."""
     payload = event["payload"]
-    offer = payload["offers"][0]
+    offers = payload["offers"]
+    offer = offers[0]
     hotel = HOTEL_SHORT_NAMES.get(payload["hotel_name"], payload["hotel_name"])
-    room = str(offer["room_name"])
-    if len(room) > 22:
-        room = room[:21] + "…"
-    price = offer.get("price_label") or "价格待确认"
-    cancellation = "可免费取消" if offer.get("free_cancellation") else "取消待确认"
-    return f"🔔 {hotel}｜{room}｜{price}｜{cancellation}｜立即订"
+    if len(offers) > 1:
+        detail = f"新增 {len(offers)} 个房型"
+    else:
+        detail = str(offer["room_name"])
+        if len(detail) > 24:
+            detail = detail[:23] + "…"
+    price = offer.get("price_label")
+    parts = [f"🔔 {hotel}", detail]
+    if price:
+        parts.append(str(price))
+    return "｜".join(parts)[:80]
 
 
 def build_pushplus_text_title(message: str) -> str:
@@ -43,47 +50,58 @@ def build_pushplus_text_title(message: str) -> str:
     lines = [line.strip() for line in message.splitlines() if line.strip()]
     if not lines:
         return "LakeWatch"
-    return "｜".join(lines[:3])[:80]
+    return "｜".join(lines[:2])[:80]
+
+
+def _short_date(value: str) -> str:
+    try:
+        parsed = date.fromisoformat(value)
+    except ValueError:
+        return value
+    return f"{parsed.year}/{parsed.month}/{parsed.day}"
+
+
+def _cancellation_text(offer: dict[str, Any]) -> str | None:
+    if not offer.get("free_cancellation"):
+        return None
+    until_date = offer.get("free_cancellation_until_date")
+    until_time = offer.get("free_cancellation_until_time")
+    if until_date:
+        until = _short_date(str(until_date))
+        if until_time:
+            until += f" {until_time}"
+        return f"免费取消至 {until}"
+    return "可免费取消"
 
 
 def render_alert(settings: Settings, event: dict[str, Any]) -> str:
     payload = event["payload"]
     offers = payload["offers"]
-    headline = "重新放房" if event["event_type"] == "availability_returned" else "出现新房型"
+    hotel = HOTEL_SHORT_NAMES.get(payload["hotel_name"], payload["hotel_name"])
+    if event["event_type"] == "availability_returned":
+        headline = "重新有房" if len(offers) == 1 else f"重新有房（{len(offers)} 个房型）"
+    else:
+        headline = "新增房型" if len(offers) == 1 else f"新增 {len(offers)} 个房型"
     check_in = payload.get("check_in") or settings.check_in.isoformat()
     check_out = payload.get("check_out") or settings.check_out.isoformat()
-    lines = [
-        "🔔 LakeWatch 酒店捡漏",
-        f"{payload['hotel_name']}：{headline}",
-        f"入住：{check_in} → {check_out}",
-    ]
-    for offer in offers[:5]:
-        cancellation = "不可免费取消/未披露"
-        if offer.get("free_cancellation"):
-            until = " ".join(
-                value
-                for value in (
-                    offer.get("free_cancellation_until_date"),
-                    offer.get("free_cancellation_until_time"),
-                )
-                if value
-            )
-            cancellation = f"免费取消{f'至 {until}' if until else ''}"
-        stars = "⭐⭐⭐⭐⭐" if offer.get("free_cancellation") else ("⭐⭐⭐⭐" if offer.get("official") else "⭐⭐⭐")
-        channel = f"{offer['source']}{'（官网）' if offer.get('official') else ''}"
-        lines.extend(
-            [
-                "",
-                f"房型：{offer['room_name']}",
-                f"价格：{offer.get('price_label') or '未披露'} / 晚",
-                f"取消：{cancellation}",
-                f"渠道：{channel}",
-                f"建议：{stars} 立即查看",
-                f"预订：{offer.get('link') or '请打开渠道查询'}",
-            ]
-        )
-    if len(offers) > 5:
-        lines.append(f"\n另有 {len(offers) - 5} 个新房型，详见执行日志。")
+    stay = f"{_short_date(str(check_in))}–{_short_date(str(check_out))}"
+    first = offers[0]
+    lines = [f"🔔 {hotel} {headline}"]
+    if len(offers) == 1:
+        lines.append(f"{stay} · {first['room_name']}")
+        details = [value for value in (first.get("price_label"), _cancellation_text(first)) if value]
+        if details:
+            lines.append(" · ".join(str(value) for value in details))
+    else:
+        price = first.get("price_label")
+        lines.append(f"{stay}{f' · 最低 {price}' if price else ''}")
+        room_names = "、".join(str(offer["room_name"]) for offer in offers[:3])
+        if len(offers) > 3:
+            room_names += f"等 {len(offers)} 个房型"
+        lines.append(room_names)
+    link = first.get("link")
+    if link:
+        lines.append(f"立即预订：{link}")
     return "\n".join(lines)
 
 

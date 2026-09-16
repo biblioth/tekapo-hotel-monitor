@@ -118,7 +118,7 @@ class Database:
                 ),
             )
 
-    def record_result(self, run_id: str, result: HotelResult) -> int:
+    def record_result(self, run_id: str, result: HotelResult) -> int | None:
         now = utcnow()
         offers = [offer.to_dict() | {"identity": offer.identity} for offer in result.offers]
         payload = {
@@ -147,7 +147,7 @@ class Database:
                 ),
             )
             if result.status == "error":
-                return 0
+                return None
 
             previous = conn.execute(
                 "SELECT status, offers_json FROM snapshots WHERE hotel_key=?",
@@ -187,7 +187,7 @@ class Database:
                 ),
             )
             if event_type:
-                conn.execute(
+                cursor = conn.execute(
                     """
                     INSERT INTO events(run_id, hotel_key, event_type, payload_json, created_at)
                     VALUES (?, ?, ?, ?, ?)
@@ -217,14 +217,30 @@ class Database:
                         now,
                     ),
                 )
-                return 1
-        return 0
+                return int(cursor.lastrowid)
+        return None
 
-    def pending_events(self, limit: int = 20) -> list[dict[str, Any]]:
+    def pending_events(
+        self,
+        limit: int = 20,
+        *,
+        event_ids: tuple[int, ...] | None = None,
+    ) -> list[dict[str, Any]]:
         with self.connect() as conn:
-            rows = conn.execute(
-                "SELECT * FROM events WHERE notified_at IS NULL ORDER BY id LIMIT ?", (limit,)
-            ).fetchall()
+            if event_ids:
+                placeholders = ",".join("?" for _ in event_ids)
+                rows = conn.execute(
+                    f"""
+                    SELECT * FROM events
+                    WHERE notified_at IS NULL AND id IN ({placeholders})
+                    ORDER BY id LIMIT ?
+                    """,
+                    (*event_ids, limit),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    "SELECT * FROM events WHERE notified_at IS NULL ORDER BY id LIMIT ?", (limit,)
+                ).fetchall()
         return [{**dict(row), "payload": json.loads(row["payload_json"])} for row in rows]
 
     def mark_event_sent(self, event_id: int) -> None:

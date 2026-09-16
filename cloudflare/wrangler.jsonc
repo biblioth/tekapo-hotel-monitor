@@ -1,0 +1,24 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "lakewatch-sensor",
+  "main": "src/index.js",
+  "compatibility_date": "2026-09-01",
+  "observability": {
+    "enabled": true
+  },
+  "triggers": {
+    "crons": ["*/5 * * * *"]
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "lakewatch",
+      "database_id": "REPLACE_AFTER_D1_CREATE"
+    }
+  ],
+  "vars": {
+    "GITHUB_OWNER": "biblioth",
+    "GITHUB_REPO": "tekapo-hotel-monitor",
+    "SHADOW_MODE": "true"
+  }
+}

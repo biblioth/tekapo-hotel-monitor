@@ -1,0 +1,12 @@
+{
+  "name": "lakewatch-sensor",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test",
+    "check": "XDG_CONFIG_HOME=/tmp/lakewatch-xdg WRANGLER_LOG_PATH=/tmp/lakewatch-wrangler.log node node_modules/wrangler/bin/wrangler.js deploy --dry-run"
+  },
+  "devDependencies": {
+    "wrangler": "4.132.0"
+  }
+}

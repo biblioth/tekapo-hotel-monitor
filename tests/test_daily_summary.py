@@ -35,15 +35,10 @@ def test_builds_concise_daily_summary() -> None:
 
     assert build_summary(date(2026, 8, 16), runs, snapshots) == (
         "📊 LakeWatch 日报｜2026-08-16\n"
-        "\n"
-        "结论：🔔 发现房态变化，提醒已经发送\n"
-        "执行情况：自动检查 2 次，计划约 24 次，少 22 次\n"
-        "检查质量：1 次完整成功，1 次未完整成功\n"
-        "官网读取失败：\n"
-        "- Hahei Beach：1 次\n"
-        "房态结果：变化 1 次；已发送提醒 1 条\n"
-        "最近有效记录：有房 1 家；无房 2 家\n"
-        "你需要做什么：请查看此前的放房提醒，并尽快打开官网确认"
+        "🔔 发现 1 次房态变化｜已发送 1 条提醒\n"
+        "自动检查 2/24 次，少 22 次\n"
+        "官网异常：Hahei Beach：失败 1 次（截至日报仍未恢复）\n"
+        "请查看放房提醒并打开官网确认"
     )
 
 
@@ -68,7 +63,7 @@ def test_repeated_errors_are_reported_as_one_affected_hotel() -> None:
 
     summary = build_summary(date(2026, 8, 23), runs, snapshots)
 
-    assert "官网读取失败：\n- Hahei Beach：6 次" in summary
+    assert "官网异常：Hahei Beach：失败 6 次（截至日报仍未恢复）" in summary
 
 
 def test_clean_day_is_described_as_all_normal() -> None:
@@ -83,8 +78,8 @@ def test_clean_day_is_described_as_all_normal() -> None:
 
     summary = build_summary(date(2026, 8, 23), runs, [])
 
-    assert "结论：⚠️ 监控次数不足；已完成的检查未发现新放房" in summary
-    assert "检查质量：全部 1 次均完整成功" in summary
+    assert "⚠️ 监控执行不足｜未发现新房" in summary
+    assert "自动检查 1/24 次，少 23 次" in summary
 
 
 def test_separates_scheduled_and_manual_checks() -> None:
@@ -111,15 +106,47 @@ def test_separates_scheduled_and_manual_checks() -> None:
 
     summary = build_summary(date(2026, 8, 31), runs, [])
 
-    assert "自动检查 20 次，计划约 24 次，少 4 次；另有手动检查 3 次" in summary
+    assert "自动检查 20/24 次，少 4 次｜另有手动 3 次" in summary
 
 
 def test_reports_missing_daily_runs() -> None:
     assert build_summary(date(2026, 8, 16), [], []) == (
         "📊 LakeWatch 日报｜2026-08-16\n"
-        "\n"
-        "结论：🚨 昨日监控没有运行\n"
-        "执行情况：自动检查 0 次，计划约 24 次\n"
-        "房态结果：没有足够数据判断是否出现新放房\n"
-        "你需要做什么：订房方面暂不操作；需要尽快检查云端定时任务"
+        "🚨 昨日监控未运行\n"
+        "自动检查 0/24 次｜无法判断房态"
     )
+
+
+def test_daily_summary_marks_a_hotel_as_recovered() -> None:
+    runs = [
+        {
+            "started_at": "2026-09-16T02:00:00+00:00",
+            "status": "success",
+            "error_count": 0,
+            "change_count": 0,
+            "notification_count": 0,
+            "summary": {
+                "hotels": [{"key": "tasman-hahei-beach", "status": "unavailable"}]
+            },
+        },
+        {
+            "started_at": "2026-09-16T01:00:00+00:00",
+            "status": "partial",
+            "error_count": 1,
+            "change_count": 0,
+            "notification_count": 0,
+            "summary": {"hotels": [{"key": "tasman-hahei-beach", "status": "error"}]},
+        },
+    ]
+    snapshots = [
+        {
+            "hotel_key": "tasman-hahei-beach",
+            "hotel_name": "Tasman Holiday Parks Hahei Beach",
+            "status": "unavailable",
+        }
+    ]
+
+    summary = build_summary(date(2026, 9, 16), runs, snapshots)
+
+    assert "官网异常：Hahei Beach：失败 1 次（已恢复）" in summary
+    assert "系统将继续自动重试｜无需手动处理" in summary

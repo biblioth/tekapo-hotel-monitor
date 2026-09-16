@@ -9,7 +9,7 @@
 [![Hourly monitor](https://github.com/biblioth/tekapo-hotel-monitor/actions/workflows/hourly-monitor.yml/badge.svg)](https://github.com/biblioth/tekapo-hotel-monitor/actions/workflows/hourly-monitor.yml)
 [![Daily summary](https://github.com/biblioth/tekapo-hotel-monitor/actions/workflows/daily-summary.yml/badge.svg)](https://github.com/biblioth/tekapo-hotel-monitor/actions/workflows/daily-summary.yml)
 [![Python 3.12](https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white)](https://www.python.org/)
-[![Version](https://img.shields.io/badge/version-1.1.7-0A7B83)](#更新日志)
+[![Version](https://img.shields.io/badge/version-1.1.8-0A7B83)](#更新日志)
 [![Cost](https://img.shields.io/badge/运行成本-NZ%240-brightgreen)](#为什么是免费的)
 
 **安静监控 · 官网直查 · 飞书 / 微信双推送 · 每日简报**
@@ -58,18 +58,23 @@
 ## 收到的提醒长这样
 
 ```text
-🔔 LakeWatch 酒店捡漏
-
-Peppers Bluewater Resort 放房
-房型：Deluxe Lake View Room
-价格：NZ$xxx
-可免费取消至：2027/02/03 xx:xx
-渠道：官网
-
-建议：⭐⭐⭐⭐⭐ 立即订
+🔔 Peppers Bluewater 重新有房
+2027/2/5–2027/2/6 · Deluxe Lake View Room
+NZ$420 · 免费取消至 2027/2/3
+立即预订：https://酒店官网预订链接
 ```
 
-每天还会收到一条简短汇总，包含前一天的执行次数、异常数、房态变化和提醒次数。即使全天没有新房，也能确认服务仍在正常工作。
+每天还会收到一条简短汇总：
+
+```text
+📊 LakeWatch 日报｜2026-09-16
+⚠️ 有短暂异常｜未发现新房
+自动检查 24/24 次
+官网异常：Hahei Beach：失败 3 次（已恢复）
+系统将继续自动重试｜无需手动处理
+```
+
+即使全天没有新房，也能确认服务仍在正常工作。官网异常只写入日志和次日日报，不会另外发送即时故障提醒；只有真正发现新房才会立即通知。
 
 ## 工作方式
 
@@ -158,6 +163,13 @@ pytest
 - 房态和价格以最终预订页面为准；收到提醒后仍应尽快打开官网确认并下单。
 
 ## 更新日志
+
+### v1.1.8 · 2026-09-16
+
+- 放房提醒缩短为 3–4 行，只保留酒店、日期、房型、价格/取消政策和官网链接；官网未披露的字段不再显示占位文字。
+- 微信通知标题只显示酒店、房型和价格，不再堆叠取消政策、渠道与推荐星级。
+- 日报改为直接显示 `实际/计划` 执行次数，并标明每家异常酒店是“已恢复”还是“截至日报仍未恢复”。
+- 官网读取异常不发送即时故障提醒，只记录在执行日志并于次日日报汇总；系统会继续自动重试。
 
 ### v1.1.7 · 2026-09-08
 
