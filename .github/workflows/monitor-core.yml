@@ -24,6 +24,7 @@ jobs:
       FEISHU_WEBHOOK_SECRET: ${{ secrets.FEISHU_WEBHOOK_SECRET }}
       PUSHPLUS_TOKEN: ${{ secrets.PUSHPLUS_TOKEN }}
       PUSHPLUS_TOPIC: ${{ secrets.PUSHPLUS_TOPIC }}
+      PUSHPLUS_CHANNELS: ${{ vars.PUSHPLUS_CHANNELS || 'wechat' }}
       CHECK_IN: "2027-02-05"
       CHECK_OUT: "2027-02-06"
       ADULTS: "2"

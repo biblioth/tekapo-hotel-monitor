@@ -165,21 +165,28 @@ class PushPlusNotifier:
         if not self.settings.pushplus_token:
             logger.info("PushPlus token not configured; channel skipped")
             return
-        payload = {
-            "token": self.settings.pushplus_token,
-            "title": title or build_pushplus_text_title(message),
-            "content": message,
-            "template": "txt",
-            "channel": "wechat",
-        }
-        if self.settings.pushplus_topic:
-            payload["topic"] = self.settings.pushplus_topic
+        failures = []
+        for channel in dict.fromkeys(getattr(self.settings, "pushplus_channels", ("wechat",))):
+            payload = {
+                "token": self.settings.pushplus_token,
+                "title": title or build_pushplus_text_title(message),
+                "content": message,
+                "template": "txt",
+                "channel": channel,
+            }
+            if self.settings.pushplus_topic:
+                payload["topic"] = self.settings.pushplus_topic
 
-        response = await self.client.post(self.endpoint, json=payload)
-        response.raise_for_status()
-        data = response.json()
-        if data.get("code") not in (200, "200"):
-            raise RuntimeError(f"PushPlus rejected the message: {data}")
+            try:
+                response = await self.client.post(self.endpoint, json=payload)
+                response.raise_for_status()
+                data = response.json()
+                if data.get("code") not in (200, "200"):
+                    raise RuntimeError(f"PushPlus rejected the message: {data}")
+            except Exception as error:
+                failures.append(f"{channel}: {error}")
+        if failures:
+            raise RuntimeError("PushPlus channel delivery failed: " + "; ".join(failures))
 
 
 class FanoutNotifier:

@@ -103,3 +103,24 @@ test("queues can deliver one channel without changing the other channel", async 
   assert.equal(requests.length, 1);
   assert.equal(requests[0][1].content.text, "日报正文");
 });
+
+test("PushPlus WeChat and ClawBot deliveries are tracked and sent independently", async () => {
+  const requests = [];
+  const fetcher = async (url, options) => {
+    requests.push([url, JSON.parse(options.body)]);
+    return { ok: true, status: 200, async json() { return { code: 200 }; } };
+  };
+  const env = {
+    PUSHPLUS_TOKEN: "token",
+    PUSHPLUS_TOPIC: "lakewatch",
+    PUSHPLUS_CHANNELS: "wechat, clawbot,clawbot",
+  };
+
+  assert.deepEqual(configuredNotificationChannels(env), ["pushplus", "pushplus:clawbot"]);
+  await sendTextNotificationChannel(env, "测试正文", "测试标题", "pushplus", fetcher);
+  await sendTextNotificationChannel(env, "测试正文", "测试标题", "pushplus:clawbot", fetcher);
+
+  assert.deepEqual(requests.map((request) => request[1].channel), ["wechat", "clawbot"]);
+  assert.deepEqual(requests.map((request) => request[1].template), ["txt", "txt"]);
+  assert.deepEqual(requests.map((request) => request[1].topic), ["lakewatch", "lakewatch"]);
+});

@@ -43,7 +43,11 @@ class StubChannel:
 
 @pytest.mark.asyncio
 async def test_pushplus_uses_topic_and_wechat_channel() -> None:
-    settings = SimpleNamespace(pushplus_token="test-message-token", pushplus_topic="lakewatch20270205")
+    settings = SimpleNamespace(
+        pushplus_token="test-message-token",
+        pushplus_topic="lakewatch20270205",
+        pushplus_channels=("wechat",),
+    )
     client = FakeClient({"code": 200, "msg": "请求成功"})
     notifier = PushPlusNotifier(settings, client=client)
 
@@ -62,6 +66,21 @@ async def test_pushplus_uses_topic_and_wechat_channel() -> None:
             },
         )
     ]
+
+
+@pytest.mark.asyncio
+async def test_pushplus_can_send_to_wechat_and_clawbot() -> None:
+    settings = SimpleNamespace(
+        pushplus_token="test-message-token",
+        pushplus_topic="lakewatch20270205",
+        pushplus_channels=("wechat", "clawbot"),
+    )
+    client = FakeClient({"code": 200, "msg": "请求成功"})
+    notifier = PushPlusNotifier(settings, client=client)
+
+    await notifier.send_text("有新房", title="LakeWatch 测试")
+
+    assert [request[1]["channel"] for request in client.requests] == ["wechat", "clawbot"]
 
 
 @pytest.mark.asyncio
@@ -98,7 +117,11 @@ async def test_pushplus_event_title_contains_actionable_summary() -> None:
 
 @pytest.mark.asyncio
 async def test_pushplus_daily_summary_is_visible_in_title() -> None:
-    settings = SimpleNamespace(pushplus_token="test-message-token", pushplus_topic="lakewatch20270205")
+    settings = SimpleNamespace(
+        pushplus_token="test-message-token",
+        pushplus_topic="lakewatch20270205",
+        pushplus_channels=("wechat",),
+    )
     client = FakeClient({"code": 200, "msg": "请求成功"})
     notifier = PushPlusNotifier(settings, client=client)
     message = (
@@ -118,7 +141,11 @@ async def test_pushplus_daily_summary_is_visible_in_title() -> None:
 
 @pytest.mark.asyncio
 async def test_pushplus_title_shows_single_affected_hotel() -> None:
-    settings = SimpleNamespace(pushplus_token="test-message-token", pushplus_topic="lakewatch20270205")
+    settings = SimpleNamespace(
+        pushplus_token="test-message-token",
+        pushplus_topic="lakewatch20270205",
+        pushplus_channels=("wechat",),
+    )
     client = FakeClient({"code": 200, "msg": "请求成功"})
     notifier = PushPlusNotifier(settings, client=client)
     message = (

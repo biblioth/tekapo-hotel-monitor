@@ -112,6 +112,7 @@ flowchart LR
    - `FEISHU_WEBHOOK_SECRET`
    - `PUSHPLUS_TOKEN`
    - `PUSHPLUS_TOPIC`（当前群组编码：`lakewatch20270205`）
+   - `PUSHPLUS_CHANNELS`（仓库变量；同时使用公众号和微信 ClawBot 时填 `wechat,clawbot`）
 3. 进入 `Actions → Hourly hotel monitor → Run workflow`，手动执行一次以建立基线。
 4. 检查 Actions 页面是否出现绿色成功状态。
 
