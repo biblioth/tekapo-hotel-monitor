@@ -51,6 +51,8 @@ const HEALTH_VALIDATION_MAX_AGE_MS = 45 * 60_000;
 const HEALTH_DELIVERY_MAX_AGE_MS = 2 * 60 * 60_000;
 const RETENTION_DAYS = 90;
 const DAILY_SUMMARY_CRON = "7 16 * * *";
+const SENSOR_INTERVAL_MS = 5 * 60_000;
+const DAILY_MIN_COVERAGE_RATIO = 0.95;
 
 async function mapWithConcurrency(items, limit, operation) {
   const results = new Array(items.length);
@@ -258,6 +260,36 @@ export function previousShanghaiDay(scheduledAt) {
   return { label, start: start.toISOString(), end: end.toISOString() };
 }
 
+function shanghaiClock(iso) {
+  if (!iso) return null;
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return null;
+  const local = new Date(date.getTime() + 8 * 60 * 60_000);
+  return `${String(local.getUTCHours()).padStart(2, "0")}:${String(local.getUTCMinutes()).padStart(2, "0")}`;
+}
+
+export function dailyCycleCoverage(day, cycles = {}) {
+  const dayStart = Date.parse(day.start);
+  const dayEnd = Date.parse(day.end);
+  const firstEver = Date.parse(cycles.first_cycle_ever_at || "");
+  const effectiveStart = Number.isFinite(firstEver)
+    ? Math.min(dayEnd, Math.max(dayStart, firstEver))
+    : dayStart;
+  const expected = Math.ceil(Math.max(0, dayEnd - effectiveStart) / SENSOR_INTERVAL_MS);
+  const total = Number(cycles.total || 0);
+  const missing = Math.max(0, expected - total);
+  const ratio = expected > 0 ? total / expected : 0;
+  return {
+    expected,
+    missing,
+    ratio,
+    isActivationDay: effectiveStart > dayStart,
+    hasGap: expected > 0 && ratio < DAILY_MIN_COVERAGE_RATIO,
+    firstClock: shanghaiClock(cycles.first_cycle_at),
+    lastClock: shanghaiClock(cycles.last_cycle_at),
+  };
+}
+
 export async function runDailySummary(env, scheduledAt = new Date()) {
   if (env.SHADOW_MODE === "true") return { status: "shadow-skipped" };
   const day = previousShanghaiDay(scheduledAt);
@@ -268,7 +300,11 @@ export async function runDailySummary(env, scheduledAt = new Date()) {
               SUM(CASE WHEN status='partial' THEN 1 ELSE 0 END) AS partial,
               SUM(CASE WHEN status='error' THEN 1 ELSE 0 END) AS errors,
               SUM(checked_count) AS checks,
-              SUM(unknown_count) AS unknowns
+              SUM(unknown_count) AS unknowns,
+              MIN(scheduled_at) AS first_cycle_at,
+              MAX(scheduled_at) AS last_cycle_at,
+              (SELECT MIN(scheduled_at) FROM sensor_cycles
+               WHERE id LIKE 'sensor-%') AS first_cycle_ever_at
        FROM sensor_cycles
        WHERE id LIKE 'sensor-%' AND scheduled_at>=? AND scheduled_at<?`,
     )
@@ -301,15 +337,27 @@ export async function runDailySummary(env, scheduledAt = new Date()) {
   const unknowns = Number(cycles?.unknowns || 0);
   const changes = Number(events?.changes || 0);
   const notified = Number(events?.notified || 0);
+  const coverage = dailyCycleCoverage(day, cycles);
+  const cycleErrors = Number(cycles?.errors || 0);
+  const hasMonitoringIssue = coverage.hasGap || unknowns > 0 || cycleErrors > 0;
   let conclusion = "✅ 高频监控正常｜未发现新房";
   if (total === 0) conclusion = "🚨 昨日 Cloudflare 监控未运行";
-  else if (changes > 0) conclusion = `🔔 发现 ${changes} 次房态变化｜已完成 ${notified} 次提醒`;
-  else if (total < 276 || unknowns > 0) conclusion = "⚠️ 监控有缺口或异常｜未发现新房";
+  else if (changes > 0 && hasMonitoringIssue) {
+    conclusion = `⚠️ 发现 ${changes} 次房态变化｜监控同时存在异常`;
+  } else if (changes > 0) {
+    conclusion = `🔔 发现 ${changes} 次房态变化｜已完成 ${notified} 次提醒`;
+  } else if (hasMonitoringIssue) conclusion = "⚠️ 监控有缺口或异常｜未发现新房";
+  const coveragePercent = Math.round(coverage.ratio * 100);
   const lines = [
     `📊 LakeWatch 日报｜${day.label}`,
     conclusion,
-    `传感器周期 ${total}/288 次｜酒店探测 ${Number(cycles?.checks || 0)} 次`,
+    `传感器周期 ${total}/${coverage.expected} 次（${coveragePercent}%）｜酒店探测 ${Number(cycles?.checks || 0)} 次`,
   ];
+  if (coverage.isActivationDay && coverage.firstClock && coverage.lastClock) {
+    lines.push(`有效运行 ${coverage.firstClock}–${coverage.lastClock}｜上线首日按实际窗口统计`);
+  } else if (coverage.hasGap) {
+    lines.push(`周期缺失约 ${coverage.missing} 次｜低于 95% 日覆盖率`);
+  }
   if (unknowns > 0) {
     const detail = (failures.results || [])
       .map((row) => `${row.hotel_key} ${row.count} 次`)
