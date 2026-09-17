@@ -1,9 +1,6 @@
-name: Daily hotel summary
+name: Legacy daily hotel summary (manual fallback)
 
 on:
-  schedule:
-    - cron: "7 0 * * *"
-      timezone: Asia/Shanghai
   workflow_dispatch:
     inputs:
       summary_date:

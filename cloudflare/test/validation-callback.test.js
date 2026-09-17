@@ -5,6 +5,7 @@ import { readFile } from "node:fs/promises";
 import { Miniflare, convertV4MiniflareOptions } from "miniflare";
 
 import { health, receiveValidation } from "../src/index.js";
+import { reconcileStaleCycles } from "../src/storage.js";
 
 async function database() {
   const mf = new Miniflare(
@@ -125,6 +126,21 @@ test("health checks only sensors in shadow mode and the full path in active mode
     const shadowBody = await shadowResponse.json();
     assert.equal(shadowBody.mode, "shadow");
     assert.equal(shadowBody.components.sensor.ok, true);
+
+    const staleTime = new Date(Date.now() - 20 * 60_000).toISOString();
+    await db
+      .prepare(
+        `INSERT INTO sensor_cycles(id, scheduled_at, started_at, status)
+         VALUES ('sensor-stale-running', ?, ?, 'running')`,
+      )
+      .bind(staleTime, staleTime)
+      .run();
+    const staleResponse = await health({ DB: db, SHADOW_MODE: "true" });
+    assert.equal(staleResponse.status, 503);
+    const staleBody = await staleResponse.json();
+    assert.equal(staleBody.components.sensor.staleRunningCycles, 1);
+
+    await reconcileStaleCycles(db, new Date(Date.now() - 15 * 60_000).toISOString(), now);
 
     const activeResponse = await health({ DB: db, SHADOW_MODE: "false" });
     assert.equal(activeResponse.status, 503);

@@ -14,6 +14,7 @@ import {
   pendingDeliveries,
   pendingSummaryDeliveries,
   pendingConfirmedEvents,
+  reconcileStaleCycles,
   recordObservation,
   startCycle,
 } from "../src/storage.js";
@@ -51,6 +52,31 @@ async function database() {
     throw error;
   }
 }
+
+test("stale running cycles are closed without touching a fresh cycle", async () => {
+  const { db, close } = await database();
+  try {
+    await startCycle(db, "cycle-stale", "2026-09-16T00:00:00Z", "2026-09-16T00:00:01Z");
+    await startCycle(db, "cycle-fresh", "2026-09-16T00:20:00Z", "2026-09-16T00:20:01Z");
+
+    const recovered = await reconcileStaleCycles(
+      db,
+      "2026-09-16T00:15:00Z",
+      "2026-09-16T00:25:00Z",
+    );
+    assert.equal(recovered, 1);
+
+    const rows = await db
+      .prepare("SELECT id, status, finished_at FROM sensor_cycles ORDER BY id")
+      .all();
+    assert.deepEqual(rows.results, [
+      { id: "cycle-fresh", status: "running", finished_at: null },
+      { id: "cycle-stale", status: "error", finished_at: "2026-09-16T00:25:00Z" },
+    ]);
+  } finally {
+    await close();
+  }
+});
 
 test("candidate transitions wait for browser confirmation without advancing snapshot", async () => {
   const { db, close } = await database();

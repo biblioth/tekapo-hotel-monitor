@@ -98,6 +98,18 @@ export async function startCycle(db, cycleId, scheduledAt, startedAt) {
   return Boolean(result.meta?.changes);
 }
 
+export async function reconcileStaleCycles(db, staleBefore, finishedAt) {
+  const result = await db
+    .prepare(
+      `UPDATE sensor_cycles
+       SET finished_at=?, status='error'
+       WHERE status='running' AND started_at < ?`,
+    )
+    .bind(finishedAt, staleBefore)
+    .run();
+  return Number(result.meta?.changes || 0);
+}
+
 export async function hotelCheckDecision(db, hotelKey, now) {
   const snapshot = await db
     .prepare(

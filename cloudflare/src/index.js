@@ -32,6 +32,7 @@ import {
   pendingDeliveries,
   pendingSummaryDeliveries,
   pendingValidations,
+  reconcileStaleCycles,
   recordObservation,
   startCycle,
 } from "./storage.js";
@@ -49,6 +50,7 @@ const HEALTH_SENSOR_MAX_AGE_MS = 15 * 60_000;
 const HEALTH_BROWSER_MAX_AGE_MS = 150 * 60_000;
 const HEALTH_VALIDATION_MAX_AGE_MS = 45 * 60_000;
 const HEALTH_DELIVERY_MAX_AGE_MS = 2 * 60 * 60_000;
+const CYCLE_STALE_MS = 15 * 60_000;
 const RETENTION_DAYS = 90;
 const DAILY_SUMMARY_CRON = "7 16 * * *";
 const SENSOR_INTERVAL_MS = 5 * 60_000;
@@ -162,6 +164,11 @@ export async function runSensorCycle(env, scheduledAt, fetcher = fetch) {
   const scheduledIso = scheduledAt.toISOString();
   const cycleId = `sensor-${scheduledAt.getTime()}`;
   const startedAt = new Date().toISOString();
+  const staleBefore = new Date(Date.parse(startedAt) - CYCLE_STALE_MS).toISOString();
+  const recoveredCycleCount = await reconcileStaleCycles(env.DB, staleBefore, startedAt);
+  if (recoveredCycleCount > 0) {
+    console.error("Recovered stale sensor cycles", { recoveredCycleCount, staleBefore });
+  }
   if (!(await startCycle(env.DB, cycleId, scheduledIso, startedAt))) {
     return { cycleId, status: "duplicate", results: [] };
   }
@@ -171,81 +178,114 @@ export async function runSensorCycle(env, scheduledAt, fetcher = fetch) {
   let unknownCount = 0;
   let eventCount = 0;
   let skippedCount = 0;
-  const results = await mapWithConcurrency(HOTELS, 3, async (hotel) => {
-    const decision = await hotelCheckDecision(env.DB, hotel.key, new Date(startedAt));
-    if (!decision.shouldCheck) {
-      skippedCount += 1;
-      return {
-        hotelKey: hotel.key,
-        status: "backoff",
-        failures: decision.failures,
-        nextCheckAt: decision.nextCheckAt,
-        durationMs: 0,
-        event: null,
-      };
-    }
+  try {
+    const results = await mapWithConcurrency(HOTELS, 3, async (hotel) => {
+      const decision = await hotelCheckDecision(env.DB, hotel.key, new Date(startedAt));
+      if (!decision.shouldCheck) {
+        skippedCount += 1;
+        return {
+          hotelKey: hotel.key,
+          status: "backoff",
+          failures: decision.failures,
+          nextCheckAt: decision.nextCheckAt,
+          durationMs: 0,
+          event: null,
+        };
+      }
 
-    const hotelClock = Date.now();
-    let observation;
-    try {
-      observation = await ADAPTERS[hotel.engine](hotel, fetcher);
-    } catch (error) {
-      observation = unknown(error instanceof Error ? error.message : String(error));
-    }
-    const durationMs = Date.now() - hotelClock;
-    const observedAt = new Date().toISOString();
-    const event = await recordObservation(env.DB, {
-      cycleId,
-      hotel,
-      observation,
-      durationMs,
-      observedAt,
+      const hotelClock = Date.now();
+      let observation;
+      try {
+        observation = await ADAPTERS[hotel.engine](hotel, fetcher);
+      } catch (error) {
+        observation = unknown(error instanceof Error ? error.message : String(error));
+      }
+      const durationMs = Date.now() - hotelClock;
+      const observedAt = new Date().toISOString();
+      const event = await recordObservation(env.DB, {
+        cycleId,
+        hotel,
+        observation,
+        durationMs,
+        observedAt,
+      });
+      checkedCount += 1;
+      availableCount += observation.status === "available" ? 1 : 0;
+      unknownCount += observation.status === "unknown" ? 1 : 0;
+      eventCount += event?.created ? 1 : 0;
+      return { hotelKey: hotel.key, ...observation, durationMs, event: event?.type || null };
     });
-    checkedCount += 1;
-    availableCount += observation.status === "available" ? 1 : 0;
-    unknownCount += observation.status === "unknown" ? 1 : 0;
-    eventCount += event?.created ? 1 : 0;
-    return { hotelKey: hotel.key, ...observation, durationMs, event: event?.type || null };
-  });
 
-  const validationDispatchCount = await dispatchPendingValidations(env, fetcher);
-  let watchdogDispatchCount = 0;
-  if (scheduledAt.getUTCMinutes() === 0) {
-    watchdogDispatchCount = await dispatchBrowserOnlyWatchdog(env, cycleId, fetcher);
-  }
+    const validationDispatchCount = await dispatchPendingValidations(env, fetcher);
+    let watchdogDispatchCount = 0;
+    if (scheduledAt.getUTCMinutes() === 0) {
+      watchdogDispatchCount = await dispatchBrowserOnlyWatchdog(env, cycleId, fetcher);
+    }
 
-  let status = "success";
-  if (checkedCount === 0 && skippedCount > 0) status = "backoff";
-  else if (unknownCount === checkedCount) status = "error";
-  else if (unknownCount > 0) status = "partial";
-  const notificationEnqueueCount = await enqueuePendingNotifications(env);
-  await finishCycle(env.DB, cycleId, {
-    finishedAt: new Date().toISOString(),
-    status,
-    checkedCount,
-    availableCount,
-    unknownCount,
-    skippedCount,
-    eventCount,
-    durationMs: Date.now() - startedClock,
-  });
-  if (scheduledAt.getUTCHours() === 0 && scheduledAt.getUTCMinutes() === 0) {
-    const cutoff = new Date(Date.now() - RETENTION_DAYS * 86_400_000).toISOString();
-    await cleanupSensorData(env.DB, cutoff);
+    let status = "success";
+    if (checkedCount === 0 && skippedCount > 0) status = "backoff";
+    else if (unknownCount === checkedCount) status = "error";
+    else if (unknownCount > 0) status = "partial";
+    const notificationEnqueueCount = await enqueuePendingNotifications(env);
+    await finishCycle(env.DB, cycleId, {
+      finishedAt: new Date().toISOString(),
+      status,
+      checkedCount,
+      availableCount,
+      unknownCount,
+      skippedCount,
+      eventCount,
+      durationMs: Date.now() - startedClock,
+    });
+    if (scheduledAt.getUTCHours() === 0 && scheduledAt.getUTCMinutes() === 0) {
+      const cutoff = new Date(Date.now() - RETENTION_DAYS * 86_400_000).toISOString();
+      try {
+        await cleanupSensorData(env.DB, cutoff);
+      } catch (error) {
+        console.error("Sensor retention cleanup failed", {
+          error: error instanceof Error ? error.message : String(error),
+        });
+      }
+    }
+    return {
+      cycleId,
+      status,
+      checkedCount,
+      availableCount,
+      unknownCount,
+      skippedCount,
+      eventCount,
+      recoveredCycleCount,
+      validationDispatchCount,
+      watchdogDispatchCount,
+      notificationEnqueueCount,
+      results,
+    };
+  } catch (error) {
+    const failedAt = new Date().toISOString();
+    try {
+      await finishCycle(env.DB, cycleId, {
+        finishedAt: failedAt,
+        status: "error",
+        checkedCount,
+        availableCount,
+        unknownCount,
+        skippedCount,
+        eventCount,
+        durationMs: Date.now() - startedClock,
+      });
+    } catch (finishError) {
+      console.error("Failed to close errored sensor cycle", {
+        cycleId,
+        error: finishError instanceof Error ? finishError.message : String(finishError),
+      });
+    }
+    console.error("Sensor cycle failed", {
+      cycleId,
+      error: error instanceof Error ? error.message : String(error),
+    });
+    throw error;
   }
-  return {
-    cycleId,
-    status,
-    checkedCount,
-    availableCount,
-    unknownCount,
-    skippedCount,
-    eventCount,
-    validationDispatchCount,
-    watchdogDispatchCount,
-    notificationEnqueueCount,
-    results,
-  };
 }
 
 export function previousShanghaiDay(scheduledAt) {
@@ -299,6 +339,7 @@ export async function runDailySummary(env, scheduledAt = new Date()) {
               SUM(CASE WHEN status='success' THEN 1 ELSE 0 END) AS successful,
               SUM(CASE WHEN status='partial' THEN 1 ELSE 0 END) AS partial,
               SUM(CASE WHEN status='error' THEN 1 ELSE 0 END) AS errors,
+              SUM(CASE WHEN status='running' THEN 1 ELSE 0 END) AS running,
               SUM(checked_count) AS checks,
               SUM(unknown_count) AS unknowns,
               MIN(scheduled_at) AS first_cycle_at,
@@ -339,7 +380,9 @@ export async function runDailySummary(env, scheduledAt = new Date()) {
   const notified = Number(events?.notified || 0);
   const coverage = dailyCycleCoverage(day, cycles);
   const cycleErrors = Number(cycles?.errors || 0);
-  const hasMonitoringIssue = coverage.hasGap || unknowns > 0 || cycleErrors > 0;
+  const runningCycles = Number(cycles?.running || 0);
+  const hasMonitoringIssue =
+    coverage.hasGap || unknowns > 0 || cycleErrors > 0 || runningCycles > 0;
   let conclusion = "✅ 高频监控正常｜未发现新房";
   if (total === 0) conclusion = "🚨 昨日 Cloudflare 监控未运行";
   else if (changes > 0 && hasMonitoringIssue) {
@@ -363,6 +406,9 @@ export async function runDailySummary(env, scheduledAt = new Date()) {
       .map((row) => `${row.hotel_key} ${row.count} 次`)
       .join("；");
     lines.push(`接口异常 ${unknowns} 次${detail ? `｜${detail}` : ""}`);
+  }
+  if (cycleErrors > 0 || runningCycles > 0) {
+    lines.push(`周期异常 ${cycleErrors} 次${runningCycles > 0 ? `｜未完成 ${runningCycles} 次` : ""}`);
   }
   if (Number(events?.rejected || 0) > 0) {
     lines.push(`浏览器驳回候选 ${Number(events.rejected)} 次`);
@@ -483,13 +529,8 @@ export async function health(env) {
       "SELECT * FROM sensor_cycles WHERE id LIKE 'sensor-%' ORDER BY scheduled_at DESC LIMIT 1",
     )
     .first();
-  const ageMs = latest ? Date.now() - new Date(latest.scheduled_at).getTime() : null;
-  const sensorHealthy =
-    Boolean(latest?.finished_at) &&
-    Number.isFinite(ageMs) &&
-    ageMs >= 0 &&
-    ageMs < HEALTH_SENSOR_MAX_AGE_MS &&
-    latest.status !== "error";
+  const now = Date.now();
+  const ageMs = latest ? now - new Date(latest.scheduled_at).getTime() : null;
   const pending = await env.DB
     .prepare(
       `SELECT
@@ -502,12 +543,14 @@ export async function health(env) {
        FROM sensor_events`,
     )
     .first();
-  const now = Date.now();
+  const staleCycleBefore = new Date(now - CYCLE_STALE_MS).toISOString();
   const staleValidationBefore = new Date(now - HEALTH_VALIDATION_MAX_AGE_MS).toISOString();
   const staleDeliveryBefore = new Date(now - HEALTH_DELIVERY_MAX_AGE_MS).toISOString();
   const stale = await env.DB
     .prepare(
       `SELECT
+         (SELECT COUNT(*) FROM sensor_cycles
+          WHERE status='running' AND started_at < ?) AS cycles,
          (SELECT COUNT(*) FROM sensor_events
           WHERE requires_validation=1
             AND validation_status IN ('pending', 'dispatched')
@@ -517,8 +560,15 @@ export async function health(env) {
          (SELECT COUNT(*) FROM sensor_summary_deliveries
           WHERE delivered_at IS NULL AND created_at < ?) AS summaries`,
     )
-    .bind(staleValidationBefore, staleDeliveryBefore, staleDeliveryBefore)
+    .bind(staleCycleBefore, staleValidationBefore, staleDeliveryBefore, staleDeliveryBefore)
     .first();
+  const sensorHealthy =
+    Boolean(latest?.finished_at) &&
+    Number.isFinite(ageMs) &&
+    ageMs >= 0 &&
+    ageMs < HEALTH_SENSOR_MAX_AGE_MS &&
+    latest.status !== "error" &&
+    Number(stale?.cycles || 0) === 0;
   const browserRows = BROWSER_ONLY_HOTELS.length
     ? await env.DB
         .prepare(
@@ -560,7 +610,12 @@ export async function health(env) {
       ok: healthy,
       mode: shadow ? "shadow" : "active",
       components: {
-        sensor: { ok: sensorHealthy, latest, ageMs },
+        sensor: {
+          ok: sensorHealthy,
+          latest,
+          ageMs,
+          staleRunningCycles: Number(stale?.cycles || 0),
+        },
         browserOnly: { ok: shadow || browserOnly.every((entry) => entry.ok), hotels: browserOnly },
         notifications: {
           ok:
@@ -573,7 +628,7 @@ export async function health(env) {
         validations: { ok: shadow || Number(stale?.validations || 0) === 0 },
       },
       pending: pending || { validations: 0, notifications: 0 },
-      stale: stale || { validations: 0, deliveries: 0, summaries: 0 },
+      stale: stale || { cycles: 0, validations: 0, deliveries: 0, summaries: 0 },
     },
     { status: healthy ? 200 : 503 },
   );

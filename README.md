@@ -43,7 +43,7 @@
 | 数据源 | **酒店官网 / 官方预订引擎** |
 | 提醒渠道 | **飞书机器人 + PushPlus 微信公众号 + 微信 ClawBot** |
 | 每日简报 | **北京时间每天 00:07** |
-| 生产状态 | **Cloudflare 主监控已启用；旧 GitHub 定时任务由开关跳过** |
+| 生产状态 | **Cloudflare 主监控已启用；旧 GitHub 定时入口已移除，仅保留手动回滚入口** |
 
 监控酒店：
 
@@ -107,7 +107,7 @@ Cloudflare Worker 负责高频传感、状态比较、日报和通知队列。�
 - 仓库代码、酒店名单及每家酒店的入住日期是公开的。
 - 飞书、PushPlus、GitHub 和回调凭据保存在 Worker Secrets 或 GitHub Actions Secrets 中，不会提交到仓库。
 - Cloudflare Cron 可能存在短暂调度延迟；酒店官网也可能限流、改版或启用验证码，因此本项目追求可靠捡漏，不承诺秒级发现。
-- GitHub Actions 只承担按酒店触发的 Playwright 复核和外部健康检查；旧版整站小时监控保留为回滚路径，生产环境不会执行。
+- GitHub Actions 只承担按酒店触发的 Playwright 复核和外部健康检查；旧版整站监控仅保留手动回滚入口，不再创建定时跳过记录。
 
 ## 云端部署
 
@@ -134,7 +134,7 @@ Cloudflare Worker 负责高频传感、状态比较、日报和通知队列。�
 6. 部署 Worker，确认 `/health` 返回 `mode: active` 和 `ok: true`。
 7. 在 `wrangler.jsonc` 中将 `PUSHPLUS_CHANNELS` 设为 `wechat,clawbot`；将 GitHub 仓库变量 `CLOUDFLARE_PRIMARY` 设为 `true`。
 
-生产配置使用 `SHADOW_MODE=false`。回滚时先把 Worker 改回 `SHADOW_MODE=true` 并部署，再把 `CLOUDFLARE_PRIMARY` 改为 `false`，旧 GitHub 小时监控即可接管。
+生产配置使用 `SHADOW_MODE=false`。紧急回滚时先把 Worker 改回 `SHADOW_MODE=true` 并部署，再把 `CLOUDFLARE_PRIMARY` 改为 `false`，手动运行 **Legacy hotel monitor (manual fallback)**。若需要长期恢复旧监控，应在专门的回滚提交中重新加入定时入口，避免日常产生大量无意义的 skipped runs。
 
 ## 本地运行（可选）
 
