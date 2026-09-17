@@ -1,13 +1,11 @@
-name: Hourly hotel monitor 03
+name: Legacy hotel monitor (manual fallback)
 
 on:
-  schedule:
-    - cron: "3 * * * *"
   workflow_dispatch:
 
 jobs:
   monitor:
     uses: ./.github/workflows/monitor-core.yml
     with:
-      trigger_kind: ${{ github.event_name }}
+      trigger_kind: legacy-manual-fallback
     secrets: inherit

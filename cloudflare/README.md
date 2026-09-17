@@ -109,20 +109,25 @@ does not dispatch browsers, enqueue alerts, or send the D1 daily summary.
 
 Cut over only after the comparison is clean:
 
-1. Set the repository Actions variable `CLOUDFLARE_PRIMARY=true`. Scheduled
-   legacy browser checks, keepalive commit, and the legacy SQLite daily summary
-   will then skip.
+1. Set the repository Actions variable `CLOUDFLARE_PRIMARY=true`. The legacy
+   browser monitor and SQLite daily summary are manual-only fallback workflows;
+   they do not create scheduled runs in normal production.
    The targeted Cloud-triggered browser validation workflow remains available.
 2. Change `SHADOW_MODE` to `false` and deploy.
 3. Run the Worker `/run` endpoint once with `Authorization: Bearer <ADMIN_TOKEN>`.
 4. Confirm `/health` returns HTTP 200 and Queue deliveries appear in D1.
 
-Rollback is the reverse: set `SHADOW_MODE=true`, deploy, and set
-`CLOUDFLARE_PRIMARY=false`.
+Rollback is the reverse: set `SHADOW_MODE=true`, deploy, set
+`CLOUDFLARE_PRIMARY=false`, then manually run **Legacy hotel monitor (manual
+fallback)**. Restore a legacy schedule in a dedicated rollback commit only when
+the fallback must remain active for an extended period.
 
 ## Runtime behaviour
 
 - Direct sensors run every five minutes with concurrency three.
+- A failed cycle is closed as `error`; any cycle left `running` for more than 15
+  minutes is automatically recovered by the next sensor run and exposed by
+  `/health` and the daily summary.
 - The first failure backs off that hotel for 15 minutes, the second for one
   hour, and later consecutive failures for six hours.
 - Candidate validation dispatches are retried after 15 minutes.
