@@ -3,12 +3,12 @@ import assert from "node:assert/strict";
 
 import { backoffDecision, backoffDelayMs } from "../src/backoff.js";
 
-test("uses 15 minute, one hour, and six hour error backoff", () => {
+test("uses bounded 15, 30, and 60 minute error backoff", () => {
   assert.equal(backoffDelayMs(0), 0);
   assert.equal(backoffDelayMs(1), 15 * 60_000);
-  assert.equal(backoffDelayMs(2), 60 * 60_000);
-  assert.equal(backoffDelayMs(3), 6 * 60 * 60_000);
-  assert.equal(backoffDelayMs(20), 6 * 60 * 60_000);
+  assert.equal(backoffDelayMs(2), 30 * 60_000);
+  assert.equal(backoffDelayMs(3), 60 * 60_000);
+  assert.equal(backoffDelayMs(20), 60 * 60_000);
 });
 
 test("skips only the failing hotel until its retry time", () => {

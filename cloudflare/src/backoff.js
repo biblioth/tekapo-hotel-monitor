@@ -3,8 +3,8 @@ const MINUTE_MS = 60_000;
 export function backoffDelayMs(consecutiveUnknown) {
   if (consecutiveUnknown <= 0) return 0;
   if (consecutiveUnknown === 1) return 15 * MINUTE_MS;
-  if (consecutiveUnknown === 2) return 60 * MINUTE_MS;
-  return 6 * 60 * MINUTE_MS;
+  if (consecutiveUnknown === 2) return 30 * MINUTE_MS;
+  return 60 * MINUTE_MS;
 }
 
 export function backoffDecision(snapshot, now = new Date()) {

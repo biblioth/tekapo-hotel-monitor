@@ -3,6 +3,7 @@ import { checkAgilysys } from "./adapters/agilysys.js";
 import { checkIbex } from "./adapters/ibex.js";
 import { checkNewbook } from "./adapters/newbook.js";
 import { checkStaah } from "./adapters/staah.js";
+import { backoffDecision } from "./backoff.js";
 import { dispatchBrowserValidation } from "./github.js";
 import { BROWSER_ONLY_HOTELS, HOTELS, hotelByKey } from "./hotels.js";
 import { unknown } from "./http.js";
@@ -159,6 +160,13 @@ async function enqueuePendingNotifications(env) {
   return enqueued;
 }
 
+export function sensorCycleStatus({ checkedCount, unknownCount, skippedCount }) {
+  if (checkedCount === 0 && skippedCount > 0) return "backoff";
+  if (checkedCount > 0 && unknownCount === checkedCount) return "error";
+  if (unknownCount > 0 || skippedCount > 0) return "partial";
+  return "success";
+}
+
 export async function runSensorCycle(env, scheduledAt, fetcher = fetch) {
   const startedClock = Date.now();
   const scheduledIso = scheduledAt.toISOString();
@@ -222,10 +230,7 @@ export async function runSensorCycle(env, scheduledAt, fetcher = fetch) {
       watchdogDispatchCount = await dispatchBrowserOnlyWatchdog(env, cycleId, fetcher);
     }
 
-    let status = "success";
-    if (checkedCount === 0 && skippedCount > 0) status = "backoff";
-    else if (unknownCount === checkedCount) status = "error";
-    else if (unknownCount > 0) status = "partial";
+    const status = sensorCycleStatus({ checkedCount, unknownCount, skippedCount });
     const notificationEnqueueCount = await enqueuePendingNotifications(env);
     await finishCycle(env.DB, cycleId, {
       finishedAt: new Date().toISOString(),
@@ -562,12 +567,42 @@ export async function health(env) {
     )
     .bind(staleCycleBefore, staleValidationBefore, staleDeliveryBefore, staleDeliveryBefore)
     .first();
+  const directSensorRows = HOTELS.length
+    ? await env.DB
+        .prepare(
+          `SELECT hotel_key, status, observed_at, consecutive_unknown
+           FROM sensor_snapshots
+           WHERE hotel_key IN (${HOTELS.map(() => "?").join(",")})`,
+        )
+        .bind(...HOTELS.map((hotel) => hotel.key))
+        .all()
+    : { results: [] };
+  const directSensorByKey = new Map(
+    (directSensorRows.results || []).map((row) => [row.hotel_key, row]),
+  );
+  const directSensors = HOTELS.map((hotel) => {
+    const row = directSensorByKey.get(hotel.key) || null;
+    const decision = backoffDecision(row, new Date(now));
+    const consecutiveUnknown = Number(row?.consecutive_unknown || 0);
+    return {
+      hotelKey: hotel.key,
+      status: row?.status || null,
+      observedAt: row?.observed_at || null,
+      consecutiveUnknown,
+      nextCheckAt: decision.nextCheckAt,
+      ok: Boolean(row) && consecutiveUnknown === 0,
+    };
+  });
+  const directSensorsHealthy = directSensors.every((entry) => entry.ok);
   const sensorHealthy =
     Boolean(latest?.finished_at) &&
     Number.isFinite(ageMs) &&
     ageMs >= 0 &&
     ageMs < HEALTH_SENSOR_MAX_AGE_MS &&
     latest.status !== "error" &&
+    latest.status !== "backoff" &&
+    Number(latest?.skipped_count || 0) === 0 &&
+    directSensorsHealthy &&
     Number(stale?.cycles || 0) === 0;
   const browserRows = BROWSER_ONLY_HOTELS.length
     ? await env.DB
@@ -614,7 +649,9 @@ export async function health(env) {
           ok: sensorHealthy,
           latest,
           ageMs,
+          skippedCount: Number(latest?.skipped_count || 0),
           staleRunningCycles: Number(stale?.cycles || 0),
+          hotels: directSensors,
         },
         browserOnly: { ok: shadow || browserOnly.every((entry) => entry.ok), hotels: browserOnly },
         notifications: {

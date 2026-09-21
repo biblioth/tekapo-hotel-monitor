@@ -4,7 +4,8 @@ import { readFile } from "node:fs/promises";
 
 import { Miniflare, convertV4MiniflareOptions } from "miniflare";
 
-import { health, receiveValidation } from "../src/index.js";
+import { health, receiveValidation, sensorCycleStatus } from "../src/index.js";
+import { HOTELS } from "../src/hotels.js";
 import { reconcileStaleCycles } from "../src/storage.js";
 
 async function database() {
@@ -120,12 +121,52 @@ test("health checks only sensors in shadow mode and the full path in active mode
       )
       .bind(now, now, now)
       .run();
+    for (const hotel of HOTELS) {
+      await db
+        .prepare(
+          `INSERT INTO sensor_snapshots(
+             hotel_key, status, offers_json, observed_at, cycle_id, consecutive_unknown
+           ) VALUES (?, 'unavailable', '[]', ?, 'sensor-health', 0)`,
+        )
+        .bind(hotel.key, now)
+        .run();
+    }
 
     const shadowResponse = await health({ DB: db, SHADOW_MODE: "true" });
     assert.equal(shadowResponse.status, 200);
     const shadowBody = await shadowResponse.json();
     assert.equal(shadowBody.mode, "shadow");
     assert.equal(shadowBody.components.sensor.ok, true);
+
+    await db
+      .prepare(
+        "UPDATE sensor_snapshots SET consecutive_unknown=1 WHERE hotel_key='grand-suites'",
+      )
+      .run();
+    const backoffResponse = await health({ DB: db, SHADOW_MODE: "true" });
+    assert.equal(backoffResponse.status, 503);
+    const backoffBody = await backoffResponse.json();
+    const grandSuites = backoffBody.components.sensor.hotels.find(
+      (hotel) => hotel.hotelKey === "grand-suites",
+    );
+    assert.equal(grandSuites.ok, false);
+    assert.equal(grandSuites.consecutiveUnknown, 1);
+
+    await db
+      .prepare(
+        "UPDATE sensor_snapshots SET consecutive_unknown=0 WHERE hotel_key='grand-suites'",
+      )
+      .run();
+    await db
+      .prepare("UPDATE sensor_cycles SET skipped_count=1 WHERE id='sensor-health'")
+      .run();
+    const skippedResponse = await health({ DB: db, SHADOW_MODE: "true" });
+    assert.equal(skippedResponse.status, 503);
+    const skippedBody = await skippedResponse.json();
+    assert.equal(skippedBody.components.sensor.skippedCount, 1);
+    await db
+      .prepare("UPDATE sensor_cycles SET skipped_count=0 WHERE id='sensor-health'")
+      .run();
 
     const staleTime = new Date(Date.now() - 20 * 60_000).toISOString();
     await db
@@ -150,4 +191,23 @@ test("health checks only sensors in shadow mode and the full path in active mode
   } finally {
     await close();
   }
+});
+
+test("sensor cycles are degraded whenever a hotel is skipped", () => {
+  assert.equal(
+    sensorCycleStatus({ checkedCount: 4, unknownCount: 0, skippedCount: 1 }),
+    "partial",
+  );
+  assert.equal(
+    sensorCycleStatus({ checkedCount: 0, unknownCount: 0, skippedCount: 5 }),
+    "backoff",
+  );
+  assert.equal(
+    sensorCycleStatus({ checkedCount: 5, unknownCount: 1, skippedCount: 0 }),
+    "partial",
+  );
+  assert.equal(
+    sensorCycleStatus({ checkedCount: 5, unknownCount: 5, skippedCount: 0 }),
+    "error",
+  );
 });

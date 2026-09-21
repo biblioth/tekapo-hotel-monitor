@@ -128,8 +128,9 @@ the fallback must remain active for an extended period.
 - A failed cycle is closed as `error`; any cycle left `running` for more than 15
   minutes is automatically recovered by the next sensor run and exposed by
   `/health` and the daily summary.
-- The first failure backs off that hotel for 15 minutes, the second for one
-  hour, and later consecutive failures for six hours.
+- The first failure backs off that hotel for 15 minutes, the second for 30
+  minutes, and later consecutive failures for at most one hour. A cycle that
+  skips any backed-off hotel is marked `partial` instead of `success`.
 - Candidate validation dispatches are retried after 15 minutes.
 - Notification channels have independent delivery records and Queue retries.
 - Browser-only hotels run hourly; direct API hotels do not receive an hourly
@@ -141,10 +142,12 @@ the fallback must remain active for an extended period.
 - Observations, completed events, deliveries, and cycles are retained for 90
   days.
 - `/health` reports sensor, browser-only, validation, and notification health.
-  In active mode it returns HTTP 503 if the sensor is stale, either browser-only
-  hotel has not reported for 150 minutes, validation is stuck for 45 minutes,
-  notification delivery is stuck for two hours, or no notification channel is
-  configured. Shadow mode intentionally checks only the sensor path.
+  It returns HTTP 503 when a direct sensor is in error backoff, the latest cycle
+  skipped a hotel, or the sensor is stale. In active mode it also fails if
+  either browser-only hotel has not reported for 150 minutes, validation is
+  stuck for 45 minutes, notification delivery is stuck for two hours, or no
+  notification channel is configured. Shadow mode intentionally checks only
+  the sensor path.
 - GitHub's `Cloudflare health watchdog` probes `/health` hourly from outside
   Cloudflare. A non-200 response fails the workflow and preserves the response
   as an artifact, so a total Worker/Cron outage is still externally visible.
