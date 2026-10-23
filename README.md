@@ -128,6 +128,8 @@ Cloudflare Worker 负责高频传感、状态比较、日报和通知队列。�
    - `GITHUB_TOKEN`
    - `FEISHU_WEBHOOK_URL`
    - `FEISHU_WEBHOOK_SECRET`
+   - `FEISHU_ALERT_WEBHOOK_URL`（可选，仅接收确认后的放房提醒，不接收日报）
+   - `FEISHU_ALERT_WEBHOOK_SECRET`（可选，新群机器人启用签名校验时配置）
    - `PUSHPLUS_TOKEN`
    - `PUSHPLUS_TOPIC`
 5. 在 GitHub Actions Secrets 配置 `CLOUDFLARE_VALIDATION_URL` 和 `CLOUDFLARE_VALIDATION_TOKEN`。

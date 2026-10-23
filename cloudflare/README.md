@@ -77,12 +77,19 @@ npx wrangler dev --test-scheduled
    npx wrangler secret put VALIDATION_TOKEN
    npx wrangler secret put FEISHU_WEBHOOK_URL
    npx wrangler secret put FEISHU_WEBHOOK_SECRET
+   npx wrangler secret put FEISHU_ALERT_WEBHOOK_URL
+   # Optional when the alert-only bot has signature verification enabled:
+   npx wrangler secret put FEISHU_ALERT_WEBHOOK_SECRET
    npx wrangler secret put PUSHPLUS_TOKEN
    npx wrangler secret put PUSHPLUS_TOPIC
    ```
 
    PushPlus 渠道由 `wrangler.jsonc` 的 `PUSHPLUS_CHANNELS` 控制。`wechat,clawbot`
    会分别投递到微信公众号和微信 ClawBot，并各自独立重试。
+
+   `FEISHU_ALERT_WEBHOOK_URL` 是额外的放房提醒群机器人，只接收确认后的
+   `availability_returned` / `new_room` 事件，不接收 D1 日报。它与原飞书机器人
+   使用独立的 Queue 投递和重试记录。
 
 5. Deploy with `npx wrangler deploy`.
 6. In GitHub Actions secrets, configure:

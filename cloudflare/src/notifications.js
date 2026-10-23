@@ -74,13 +74,13 @@ async function feishuSignature(secret, timestamp) {
   return btoa(String.fromCharCode(...new Uint8Array(signature)));
 }
 
-async function sendFeishu(env, message, fetcher) {
+async function sendFeishu(webhookUrl, webhookSecret, message, fetcher) {
   const payload = { msg_type: "text", content: { text: message } };
-  if (env.FEISHU_WEBHOOK_SECRET) {
+  if (webhookSecret) {
     payload.timestamp = String(Math.floor(Date.now() / 1000));
-    payload.sign = await feishuSignature(env.FEISHU_WEBHOOK_SECRET, payload.timestamp);
+    payload.sign = await feishuSignature(webhookSecret, payload.timestamp);
   }
-  const response = await fetcher(env.FEISHU_WEBHOOK_URL, {
+  const response = await fetcher(webhookUrl, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(payload),
@@ -152,6 +152,14 @@ async function sendPushPlusText(env, message, title, apiChannel, fetcher) {
 export function configuredNotificationChannels(env) {
   return [
     env.FEISHU_WEBHOOK_URL ? "feishu" : null,
+    env.FEISHU_ALERT_WEBHOOK_URL ? "feishu:alerts" : null,
+    ...(env.PUSHPLUS_TOKEN ? pushPlusChannels(env).map(pushPlusDeliveryChannel) : []),
+  ].filter(Boolean);
+}
+
+export function configuredSummaryNotificationChannels(env) {
+  return [
+    env.FEISHU_WEBHOOK_URL ? "feishu" : null,
     ...(env.PUSHPLUS_TOKEN ? pushPlusChannels(env).map(pushPlusDeliveryChannel) : []),
   ].filter(Boolean);
 }
@@ -160,7 +168,17 @@ export async function sendNotificationChannel(env, event, channel, fetcher = fet
   const message = renderAlert(event);
   if (channel === "feishu") {
     if (!env.FEISHU_WEBHOOK_URL) throw new Error("Feishu is not configured");
-    await sendFeishu(env, message, fetcher);
+    await sendFeishu(env.FEISHU_WEBHOOK_URL, env.FEISHU_WEBHOOK_SECRET, message, fetcher);
+    return;
+  }
+  if (channel === "feishu:alerts") {
+    if (!env.FEISHU_ALERT_WEBHOOK_URL) throw new Error("Feishu alerts are not configured");
+    await sendFeishu(
+      env.FEISHU_ALERT_WEBHOOK_URL,
+      env.FEISHU_ALERT_WEBHOOK_SECRET,
+      message,
+      fetcher,
+    );
     return;
   }
   const pushPlusChannel = pushPlusApiChannel(channel);
@@ -181,7 +199,7 @@ export async function sendTextNotificationChannel(
 ) {
   if (channel === "feishu") {
     if (!env.FEISHU_WEBHOOK_URL) throw new Error("Feishu is not configured");
-    await sendFeishu(env, message, fetcher);
+    await sendFeishu(env.FEISHU_WEBHOOK_URL, env.FEISHU_WEBHOOK_SECRET, message, fetcher);
     return;
   }
   const pushPlusChannel = pushPlusApiChannel(channel);
