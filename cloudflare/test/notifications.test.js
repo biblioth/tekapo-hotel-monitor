@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import {
   buildPushPlusTitle,
   configuredNotificationChannels,
+  configuredSummaryNotificationChannels,
   renderAlert,
   sendEventNotifications,
   sendTextNotificationChannel,
@@ -102,6 +103,31 @@ test("queues can deliver one channel without changing the other channel", async 
   await sendTextNotificationChannel(env, "日报正文", "日报标题", "feishu", fetcher);
   assert.equal(requests.length, 1);
   assert.equal(requests[0][1].content.text, "日报正文");
+});
+
+test("alert-only Feishu receives availability alerts but is excluded from summaries", async () => {
+  const requests = [];
+  const fetcher = async (url, options) => {
+    requests.push([url, JSON.parse(options.body)]);
+    return { ok: true, status: 200, async json() { return { code: 0 }; } };
+  };
+  const env = {
+    FEISHU_WEBHOOK_URL: "https://example.com/feishu",
+    FEISHU_ALERT_WEBHOOK_URL: "https://example.com/feishu-alerts",
+    PUSHPLUS_TOKEN: "token",
+  };
+
+  assert.deepEqual(configuredNotificationChannels(env), [
+    "feishu",
+    "feishu:alerts",
+    "pushplus",
+  ]);
+  assert.deepEqual(configuredSummaryNotificationChannels(env), ["feishu", "pushplus"]);
+
+  await sendEventNotifications(env, event, fetcher);
+  assert.equal(requests.length, 3);
+  assert.equal(requests[1][0], "https://example.com/feishu-alerts");
+  assert.equal(requests[1][1].content.text, renderAlert(event));
 });
 
 test("PushPlus WeChat and ClawBot deliveries are tracked and sent independently", async () => {

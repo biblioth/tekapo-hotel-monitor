@@ -9,6 +9,7 @@ import { BROWSER_ONLY_HOTELS, HOTELS, hotelByKey } from "./hotels.js";
 import { unknown } from "./http.js";
 import {
   configuredNotificationChannels,
+  configuredSummaryNotificationChannels,
   sendNotificationChannel,
   sendTextNotificationChannel,
 } from "./notifications.js";
@@ -419,7 +420,7 @@ export async function runDailySummary(env, scheduledAt = new Date()) {
     lines.push(`浏览器驳回候选 ${Number(events.rejected)} 次`);
   }
   const message = lines.join("\n");
-  const channels = configuredNotificationChannels(env);
+  const channels = configuredSummaryNotificationChannels(env);
   await ensureSummaryDeliveries(
     env.DB,
     day.label,
