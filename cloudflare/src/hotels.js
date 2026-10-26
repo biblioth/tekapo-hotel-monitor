@@ -19,6 +19,7 @@ function sensorHotel(hotel) {
     tenantId: sensor.tenant_id,
     contextId: sensor.context_id,
     offerCode: sensor.offer_code,
+    roomCodes: sensor.room_codes,
     endpoint: sensor.endpoint,
   };
 }

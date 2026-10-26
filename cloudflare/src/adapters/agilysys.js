@@ -12,13 +12,21 @@ export function parseAgilysys(data, hotel) {
   if (!Array.isArray(data?.offers)) {
     throw new Error("Agilysys response is missing offers");
   }
-  const roomTypes = data.offers.flatMap((offer) =>
+  let roomTypes = data.offers.flatMap((offer) =>
     Array.isArray(offer.roomTypes) ? offer.roomTypes : [],
   );
+  if (Array.isArray(hotel.roomCodes) && hotel.roomCodes.length > 0) {
+    const allowed = new Set(hotel.roomCodes.map((code) => String(code).toUpperCase()));
+    roomTypes = roomTypes.filter((room) => {
+      const code = firstValue(room, ["roomTypeCode", "roomCode", "roomType"]);
+      return code && allowed.has(String(code).toUpperCase());
+    });
+  }
   const offers = roomTypes.map((room, index) => {
     const roomName = firstValue(room, [
       "roomTypeDescription",
       "roomTypeName",
+      "roomName",
       "description",
       "name",
       "roomType",
@@ -27,7 +35,14 @@ export function parseAgilysys(data, hotel) {
     if (!roomName) {
       throw new Error("Agilysys room is missing a recognisable name");
     }
-    const amount = firstValue(room, ["averageRate", "totalRate", "rate", "amount"]);
+    const amount = firstValue(room, [
+      "averageRate",
+      "minRate",
+      "roomTotal",
+      "totalRate",
+      "rate",
+      "amount",
+    ]);
     return {
       identity: String(firstValue(room, ["roomTypeCode", "roomCode", "id"]) || `${roomName}-${index}`),
       roomName: String(roomName),

@@ -83,15 +83,13 @@
     }
   },
   {
-    "key": "hermitage-mt-cook",
+    "key": "hermitage-mt-cook-2027-02-05",
     "name": "The Hermitage Hotel Mt Cook",
     "engine": "agilysys",
     "booking_url": "https://book.hermitage.co.nz/onecart/wbe/offers/20104/hermitage",
     "room_names": [
-      "Premium Plus Super King", "Premium Plus Queen Queen", "Premium Super King",
-      "Premium Queen Queen", "Mt Cook Suite", "Superior Room",
-      "Standard Mt Cook View King", "Standard Mt Cook View Queen",
-      "Standard (No View)", "Standard Queen (No View)"
+      "Mt Cook Motel Family Queen Queen",
+      "Mt Cook Motel Family Queen Single Single"
     ],
     "aliases": ["Hermitage Mt Cook", "The Hermitage Hotel"],
     "check_in": "2027-02-05",
@@ -102,7 +100,30 @@
       "tenant_id": "20104",
       "property_id": "hermitage",
       "context_id": "686b116fd8b56d477136cd1d",
-      "offer_code": "DYNRO"
+      "offer_code": "DYNRO",
+      "room_codes": ["MFQQ", "MFQSS"]
+    }
+  },
+  {
+    "key": "hermitage-mt-cook-2027-02-06",
+    "name": "The Hermitage Hotel Mt Cook",
+    "engine": "agilysys",
+    "booking_url": "https://book.hermitage.co.nz/onecart/wbe/offers/20104/hermitage",
+    "room_names": [
+      "Mt Cook Motel Family Queen Queen",
+      "Mt Cook Motel Family Queen Single Single"
+    ],
+    "aliases": ["Hermitage Mt Cook", "The Hermitage Hotel"],
+    "check_in": "2027-02-06",
+    "check_out": "2027-02-07",
+    "adults": 2,
+    "sensor": {
+      "engine": "agilysys",
+      "tenant_id": "20104",
+      "property_id": "hermitage",
+      "context_id": "686b116fd8b56d477136cd1d",
+      "offer_code": "DYNRO",
+      "room_codes": ["MFQQ", "MFQSS"]
     }
   },
   {
