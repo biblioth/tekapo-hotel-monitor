@@ -97,6 +97,46 @@ test("Agilysys empty roomTypes means unavailable", () => {
   assert.equal(result.status, "unavailable");
 });
 
+test("Agilysys filters Hermitage inventory to configured family room codes", () => {
+  const result = parseAgilysys(
+    {
+      offers: [
+        {
+          roomTypes: [
+            { roomCode: "MCSU", roomName: "Mt Cook Suite", minRate: 390 },
+            {
+              roomCode: "MFQSS",
+              roomName: "Mt Cook Motel Family Queen Single Single",
+              minRate: 470,
+            },
+            { roomCode: "MFQQ", roomName: "Mt Cook Motel Family Queen Queen", minRate: 470 },
+          ],
+        },
+      ],
+    },
+    { ...hotel, roomCodes: ["MFQQ", "MFQSS"] },
+  );
+
+  assert.equal(result.status, "available");
+  assert.deepEqual(
+    result.offers.map((offer) => offer.identity),
+    ["MFQSS", "MFQQ"],
+  );
+  assert.deepEqual(
+    result.offers.map((offer) => offer.roomName),
+    ["Mt Cook Motel Family Queen Single Single", "Mt Cook Motel Family Queen Queen"],
+  );
+  assert.deepEqual(result.offers.map((offer) => offer.priceLabel), ["NZ$ 470", "NZ$ 470"]);
+});
+
+test("Agilysys reports unavailable when only non-target Hermitage rooms remain", () => {
+  const result = parseAgilysys(
+    { offers: [{ roomTypes: [{ roomCode: "MCSU", roomName: "Mt Cook Suite" }] }] },
+    { ...hotel, roomCodes: ["MFQQ", "MFQSS"] },
+  );
+  assert.equal(result.status, "unavailable");
+});
+
 test("Newbook criteria failure means unavailable", () => {
   const html = `<div class="newbook_online_category_box">${"x".repeat(120)}It appears the accommodation options and dates you have selected do not meet the required criteria for a booking</div>`;
   const result = parseNewbook(html, hotel);

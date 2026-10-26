@@ -11,7 +11,8 @@ The direct adapters are:
 - Ranginui — STAah property inventory
 - Grand Suites — Ibex room inventory
 - Peppers Bluewater — Accor GraphQL availability
-- The Hermitage — Agilysys room rates
+- The Hermitage booking system — `MFQQ` and `MFQSS` family rooms for
+  5–6 and 6–7 February 2027 via Agilysys room rates
 - Hahei Beach — Newbook availability HTML
 
 Lakeview Wix and Galaxy's SiteMinder endpoint remain browser-only. The Worker
