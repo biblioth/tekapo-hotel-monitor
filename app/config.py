@@ -105,6 +105,7 @@ class Settings:
                 adults=int(item["adults"]) if item.get("adults") is not None else None,
             )
             for item in data
+            if item.get("monitoring_enabled", True) is not False
         )
         keys = [hotel.key for hotel in hotels]
         if len(keys) != len(set(keys)):

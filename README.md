@@ -4,7 +4,7 @@
 
 ### 新西兰酒店官网放房监控
 
-云端持续检查 7 家酒店官网：5 家官方接口每 5 分钟检查，2 家浏览器酒店每小时检查。每家酒店可使用独立入住日期，只在真正出现新房时提醒。
+云端持续检查 6 家酒店的 7 个目标：5 个官方接口目标每 5 分钟检查，2 家浏览器酒店每小时检查。每家酒店可使用独立入住日期，只在真正出现新房时提醒。
 
 [![Tests](https://github.com/biblioth/tekapo-hotel-monitor/actions/workflows/tests.yml/badge.svg)](https://github.com/biblioth/tekapo-hotel-monitor/actions/workflows/tests.yml)
 [![Cloudflare health](https://github.com/biblioth/tekapo-hotel-monitor/actions/workflows/cloudflare-health.yml/badge.svg)](https://github.com/biblioth/tekapo-hotel-monitor/actions/workflows/cloudflare-health.yml)
@@ -34,12 +34,11 @@
 
 | 行程 | 酒店 | 入住 → 退房 | 住客 |
 | --- | --- | --- | --- |
-| Lake Tekapo / Mt Cook | 6 家 | **2027-02-05 → 2027-02-06** | 2 位成人 |
-| Hahei Beach | 1 家 | **2027-02-12 → 2027-02-13** | 2 位成人 |
+| Lake Tekapo / Mt Cook | 6 家、7 个目标 | **2027-02-05 → 2027-02-07** | 2 位成人 |
 
 | 服务 | 配置 |
 | --- | --- |
-| 频率 | **5 家每 5 分钟 + 2 家每小时** |
+| 频率 | **5 个接口目标每 5 分钟 + 2 家每小时** |
 | 数据源 | **酒店官网 / 官方预订引擎** |
 | 提醒渠道 | **飞书机器人 + PushPlus 微信公众号 + 微信 ClawBot** |
 | 每日简报 | **北京时间每天 00:07** |
@@ -53,7 +52,8 @@
 4. Galaxy Boutique Hotel
 5. Peppers Bluewater Resort Lake Tekapo
 6. The Hermitage Hotel Mt Cook
-7. Tasman Holiday Parks Hahei Beach（原 Hahei Beach Resort）
+
+Tasman Holiday Parks Hahei Beach 已停止监控：2027-02-12 至 02-13 的一晚入住被官网要求至少连住两晚，不符合本次行程条件。
 
 > 原需求中的 “Herimage Mt Cook” 已按 **The Hermitage Hotel Mt Cook** 处理。
 

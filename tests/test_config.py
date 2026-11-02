@@ -18,6 +18,13 @@ def test_loads_optional_hotel_specific_stay(tmp_path) -> None:
                     "check_in": "2027-02-12",
                     "check_out": "2027-02-13",
                     "adults": 2,
+                },
+                {
+                    "key": "disabled-hahei",
+                    "name": "Disabled one-night target",
+                    "engine": "newbook",
+                    "booking_url": "https://example.com/disabled",
+                    "monitoring_enabled": False,
                 }
             ]
         ),
@@ -27,6 +34,7 @@ def test_loads_optional_hotel_specific_stay(tmp_path) -> None:
 
     hotel = settings.load_hotels()[0]
 
+    assert len(settings.load_hotels()) == 1
     assert hotel.check_in == date(2027, 2, 12)
     assert hotel.check_out == date(2027, 2, 13)
     assert hotel.adults == 2

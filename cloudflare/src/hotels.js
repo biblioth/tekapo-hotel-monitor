@@ -24,14 +24,20 @@ function sensorHotel(hotel) {
   };
 }
 
-export const HOTELS = configuredHotels.filter((hotel) => hotel.sensor).map(sensorHotel);
+function isEnabled(hotel) {
+  return hotel.monitoring_enabled !== false;
+}
+
+export const HOTELS = configuredHotels
+  .filter((hotel) => isEnabled(hotel) && hotel.sensor)
+  .map(sensorHotel);
 
 export const BROWSER_ONLY_HOTELS = configuredHotels
-  .filter((hotel) => !hotel.sensor)
+  .filter((hotel) => isEnabled(hotel) && !hotel.sensor)
   .map((hotel) => hotel.key);
 
 export function hotelByKey(key) {
-  const hotel = configuredHotels.find((item) => item.key === key);
+  const hotel = configuredHotels.find((item) => item.key === key && isEnabled(item));
   if (!hotel) return null;
   return {
     key: hotel.key,
