@@ -78,3 +78,45 @@ test("v2 migration upgrades the original event table without losing rows", async
     await mf.dispose();
   }
 });
+
+test("v3 migration adds indexes for cycle recovery and time-range queries", async () => {
+  const mf = new Miniflare(
+    convertV4MiniflareOptions({
+      name: "migration-v3-test",
+      modules: true,
+      script: "export default { fetch() { return new Response('ok') } }",
+      d1Databases: ["DB"],
+    }),
+  );
+  try {
+    const db = await mf.getD1Database("DB");
+    await db
+      .prepare(
+        `CREATE TABLE sensor_cycles (
+           id TEXT PRIMARY KEY,
+           scheduled_at TEXT NOT NULL,
+           started_at TEXT NOT NULL,
+           status TEXT NOT NULL
+         )`,
+      )
+      .run();
+    await executeSqlFile(db, new URL("../migrate-v3.sql", import.meta.url));
+
+    const indexes = await db
+      .prepare(
+        `SELECT name FROM sqlite_master
+         WHERE type='index' AND name LIKE 'idx_sensor_%'
+         ORDER BY name`,
+      )
+      .all();
+    assert.deepEqual(
+      indexes.results.map((row) => row.name),
+      [
+        "idx_sensor_cycles_scheduled",
+        "idx_sensor_cycles_status_started",
+      ],
+    );
+  } finally {
+    await mf.dispose();
+  }
+});

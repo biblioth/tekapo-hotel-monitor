@@ -40,8 +40,10 @@ export function parseNewbook(html, hotel) {
     .split(/(?=<[^>]+class=["'][^"']*newbook_online_category_box)/i)
     .filter((card) => /newbook_online_category_box/i.test(card));
   const offers = [];
+  let sawBookNow = false;
   for (const card of cards) {
     if (!/\bBook now\b/i.test(card)) continue;
+    sawBookNow = true;
     const nameMatch = card.match(
       /newbook_online_category_row_category_name[\s\S]*?<a[^>]*>([\s\S]*?)<\/a>/i,
     );
@@ -60,8 +62,16 @@ export function parseNewbook(html, hotel) {
     });
   }
   if (offers.length > 0) return available(offers);
+  // A booking button without a parseable category name means the provider's
+  // markup changed. Keep failing closed instead of reporting a false no-room
+  // result.
+  if (sawBookNow) {
+    throw new Error("Newbook returned a bookable room in an unknown format");
+  }
   const folded = html.toLocaleLowerCase("en");
-  if (UNAVAILABLE_TERMS.some((term) => folded.includes(term))) {
+  const requiresLongerStay =
+    /requires_date_change/i.test(html) || /\b\d+\s+nights?\s+min(?:imum)?\b/i.test(folded);
+  if (requiresLongerStay || UNAVAILABLE_TERMS.some((term) => folded.includes(term))) {
     return unavailable("Newbook reports no bookable one-night stay");
   }
   throw new Error("Newbook response contains neither bookable rooms nor an unavailable marker");
