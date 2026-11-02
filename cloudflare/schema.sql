@@ -12,6 +12,11 @@ CREATE TABLE IF NOT EXISTS sensor_cycles (
     duration_ms INTEGER
 );
 
+CREATE INDEX IF NOT EXISTS idx_sensor_cycles_status_started
+    ON sensor_cycles(status, started_at);
+CREATE INDEX IF NOT EXISTS idx_sensor_cycles_scheduled
+    ON sensor_cycles(scheduled_at DESC);
+
 CREATE TABLE IF NOT EXISTS sensor_observations (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     cycle_id TEXT NOT NULL,

@@ -99,15 +99,20 @@ npx wrangler dev --test-scheduled
    - `CLOUDFLARE_VALIDATION_TOKEN`, exactly matching the Worker
      `VALIDATION_TOKEN` secret.
 
-## Existing pre-v2 D1 database
+## Existing D1 migrations
 
-Do not reapply `schema.sql` to an existing database. Back it up, then apply the
-one-time additive migration:
+Do not reapply `schema.sql` to an existing database. Back it up, then apply each
+missing additive migration once, in version order:
 
 ```bash
 npx wrangler d1 export lakewatch --remote --output lakewatch-before-v2.sql
 npx wrangler d1 execute lakewatch --remote --file=./migrate-v2.sql
+npx wrangler d1 execute lakewatch --remote --file=./migrate-v3.sql
 ```
+
+`migrate-v3.sql` adds indexes used by the five-minute cycle recovery, health
+checks, cycle cleanup, and daily reporting. It prevents the growing cycle table
+from consuming the free-plan row-read allowance through full scans.
 
 ## Shadow and cutover
 

@@ -143,6 +143,28 @@ test("Newbook criteria failure means unavailable", () => {
   assert.equal(result.status, "unavailable");
 });
 
+test("Newbook minimum-night date change means unavailable for a one-night stay", () => {
+  const html = `<div class="newbook_online_category_box">
+    <div class="newbook_online_category_row_category_name"><a>Beach Cabin</a></div>
+    <span class="newbook_online_from_price_text">NZ$ 199</span>
+    <button class="requires_date_change">2 Night min - extend</button>
+    ${"x".repeat(120)}
+  </div>`;
+  const result = parseNewbook(html, hotel);
+  assert.equal(result.status, "unavailable");
+});
+
+test("Newbook fails closed when a bookable card changes to an unknown format", () => {
+  const html = `<div class="newbook_online_category_box">
+    <div class="renamed-category-heading">Beach Cabin</div>
+    <button>Book now</button>${"x".repeat(120)}
+  </div>`;
+  assert.throws(
+    () => parseNewbook(html, hotel),
+    /bookable room in an unknown format/,
+  );
+});
+
 test("Newbook extracts a bookable room", () => {
   const html = `<div class="newbook_online_category_box">
     <div class="newbook_online_category_row_category_name"><a>Beach Cabin</a></div>
