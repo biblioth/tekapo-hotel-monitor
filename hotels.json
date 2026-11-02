@@ -129,6 +129,8 @@
   {
     "key": "tasman-hahei-beach",
     "name": "Tasman Holiday Parks Hahei Beach",
+    "monitoring_enabled": false,
+    "disabled_reason": "The configured one-night stay is not eligible because Newbook requires a minimum two-night stay.",
     "engine": "newbook",
     "booking_url": "https://book.tasmanholidayparks.com/hahei-beach/",
     "room_names": [],

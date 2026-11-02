@@ -13,7 +13,11 @@ The direct adapters are:
 - Peppers Bluewater — Accor GraphQL availability
 - The Hermitage booking system — `MFQQ` and `MFQSS` family rooms for
   5–6 and 6–7 February 2027 via Agilysys room rates
-- Hahei Beach — Newbook availability HTML
+
+Tasman Holiday Parks Hahei Beach remains documented in `hotels.json` but is
+disabled because the configured one-night stay requires a minimum two-night
+booking. Disabled entries are excluded from both the Cloudflare sensor and the
+legacy manual fallback.
 
 Lakeview Wix and Galaxy's SiteMinder endpoint remain browser-only. The Worker
 dispatches one targeted browser job for each of them hourly. All hotel and stay
